@@ -98,6 +98,7 @@ export class Renderer {
 
     this.drawChunks(cam)
     this.drawWaves(cam, now)
+    this.drawLoot(state, cam, now)
     this.drawWakes(state, now, cam)
     for (const s of state.ships) if (s !== me && s.a) this.drawShip(s, cam, false, now)
     if (me && me.a) this.drawShip(me, cam, true, now)
@@ -158,6 +159,33 @@ export class Renderer {
     }
   }
 
+  // Beute: Münzhaufen, die sanft auf dem Wasser treiben; Größe nach Menge
+  drawLoot(state, cam, now) {
+    const { ctx, scale } = this
+    for (const [id, x, y, gold] of state.loot || []) {
+      const bob = Math.sin(now / 400 + id) * 0.04
+      const cx = this.sx(x, cam), cy = this.sy(y + bob, cam)
+      const r = (0.17 + Math.min(gold, 100) / 100 * 0.1) * scale
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath()
+        ctx.ellipse(cx + (k - 1) * r * 0.7, cy + (k % 2) * r * 0.4, r * 0.8, r * 0.55, 0, 0, 2 * PI)
+        ctx.fillStyle = k === 1 ? "#fbbf24" : "#f59e0b"
+        ctx.fill()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = "#92400e"
+        ctx.stroke()
+      }
+      ctx.font = `700 ${Math.round(0.24 * scale)}px sans-serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "bottom"
+      ctx.fillStyle = "#fde68a"
+      ctx.strokeStyle = "rgba(0,0,0,0.6)"
+      ctx.lineWidth = 3
+      ctx.strokeText(gold, cx, cy - r)
+      ctx.fillText(gold, cx, cy - r)
+    }
+  }
+
   drawBalls(state, cam) {
     const { ctx, scale } = this
     for (const [, x, y] of state.balls) {
@@ -191,7 +219,7 @@ export class Renderer {
     ctx.font = `600 ${Math.round(0.26 * scale)}px sans-serif`
     ctx.textAlign = "center"
     ctx.textBaseline = "bottom"
-    ctx.fillStyle = mine ? "#fde68a" : s.m ? "#cbd5e1" : "rgba(255,255,255,0.92)"
+    ctx.fillStyle = mine ? "#fde68a" : s.kd === "hunter" ? "#fca5a5" : s.kd === "merchant" ? "#cbd5e1" : "rgba(255,255,255,0.92)"
     ctx.strokeStyle = "rgba(0,0,0,0.55)"
     ctx.lineWidth = 3
     ctx.strokeText(s.n, cx, cy - 0.95 * scale)
@@ -321,6 +349,10 @@ export class Renderer {
     reload("Q  links", mine.rl, bx)
     reload("E  rechts", mine.rr, bx + 156 * u)
 
+    ctx.textAlign = "left"
+    ctx.fillStyle = "#fbbf24"
+    ctx.font = `800 ${14 * u}px sans-serif`
+    ctx.fillText(`🪙 ${mine.g}`, bx, by + 50 * u)
     ctx.textAlign = "right"
     ctx.fillStyle = "#cbd5e1"
     ctx.font = `700 ${12 * u}px sans-serif`

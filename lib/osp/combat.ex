@@ -7,7 +7,7 @@ defmodule Osp.Combat do
 
     * `{:fire, id, side, x, y}`
     * `{:hit, victim, by, amount, x, y}`, `{:kill, killer, victim, x, y}`
-    * `{:splash, x, y}`, `{:respawn, id, x, y}`
+    * `{:splash, x, y}`, `{:respawn, id, x, y}`, `{:loot, id, gold, x, y}` (Beute eingesammelt)
   """
 
   alias Osp.{State, Terrain}
@@ -16,9 +16,13 @@ defmodule Osp.Combat do
   @ball_speed 6.0
   @ball_ttl 750
   @ball_r 0.08
+  @hunter_reload_ms 3_200
   @respawn_ms 3_000
-  @merchant_respawn_ms 8_000
   @invuln_ms 2_000
+  @loot_r 0.75
+  @loot_ttl_ms 60_000
+  @death_loss 0.3
+  @pile 25
 
   def reload_ms, do: @reload_ms
   def respawn_ms, do: @respawn_ms
@@ -35,7 +39,8 @@ defmodule Osp.Combat do
         if Map.fetch!(s, key) > 0 do
           {state, []}
         else
-          state = State.put_ship(state, id, Map.put(s, key, @reload_ms))
+          reload = if s.kind == :hunter, do: @hunter_reload_ms, else: @reload_ms
+          state = State.put_ship(state, id, Map.put(s, key, reload))
           state = broadside(state, s, side, 3, 0.22)
           {state, [{:fire, id, side, s.x, s.y}]}
         end
@@ -62,7 +67,8 @@ defmodule Osp.Combat do
         vy: py * @ball_speed + hy * s.speed * 0.8,
         ttl: @ball_ttl,
         dmg: 1.0,
-        r: @ball_r
+        r: @ball_r,
+        owner_kind: s.kind
       })
     end)
   end
@@ -77,13 +83,15 @@ defmodule Osp.Combat do
 
   # --- Zeitschritt ----------------------------------------------------------------
 
-  @doc "Nachladen, Kugeln und Wiederauftauchen für einen Schritt."
+  @doc "Nachladen, Kugeln, Beute einsammeln und Wiederauftauchen für einen Schritt."
   @spec step(State.t(), non_neg_integer()) :: {State.t(), list()}
   def step(state, ms) do
     state = reload(state, ms)
     {state, e1} = move_balls(state, ms / 1000, ms)
-    {state, e2} = respawns(state)
-    {state, e1 ++ e2}
+    {state, e2} = loot_pickups(state)
+    state = %{state | loot: Enum.filter(state.loot, &(state.time - &1.born < @loot_ttl_ms))}
+    {state, e3} = respawns(state)
+    {state, e1 ++ e2 ++ e3}
   end
 
   defp reload(state, ms) do
@@ -129,6 +137,7 @@ defmodule Osp.Combat do
       r = Osp.Sailing.ship_radius() + ball.r
 
       if s.alive? and id != ball.owner and s.invuln_until <= state.time and
+           (ball.owner_kind == :player or s.kind == :player) and
            (s.x - ball.x) * (s.x - ball.x) + (s.y - ball.y) * (s.y - ball.y) < r * r,
          do: id
     end)
@@ -167,26 +176,84 @@ defmodule Osp.Combat do
   defp kill(state, id) do
     s = state.ships[id]
     killer = s.last_hit_by
-    delay = if s.kind == :merchant, do: @merchant_respawn_ms, else: @respawn_ms
-
-    state =
-      State.update_ship(state, id, fn v ->
-        %{
-          v
-          | alive?: false,
-            respawn_at: state.time + delay,
-            deaths: v.deaths + 1,
-            speed: 0.0,
-            input: State.idle()
-        }
-      end)
 
     state =
       if killer && killer != id && state.ships[killer],
         do: State.update_ship(state, killer, &%{&1 | kills: &1.kills + 1}),
         else: state
 
+    state =
+      case s.kind do
+        :player ->
+          # Ein Teil des getragenen Golds geht verloren und liegt als Beute im Wasser
+          lost = round(s.gold * @death_loss)
+
+          state
+          |> State.update_ship(id, fn v ->
+            %{
+              v
+              | alive?: false,
+                respawn_at: state.time + @respawn_ms,
+                deaths: v.deaths + 1,
+                gold: v.gold - lost,
+                speed: 0.0,
+                input: State.idle()
+            }
+          end)
+          |> drop_loot(s.x, s.y, lost)
+
+        _npc ->
+          # NPCs verschwinden mit dem Untergang und lassen ihr Kopfgeld fallen
+          state |> State.remove_npc(id) |> drop_loot(s.x, s.y, s.bounty)
+      end
+
     {state, [{:kill, killer, id, s.x, s.y}]}
+  end
+
+  # --- Beute --------------------------------------------------------------------------
+
+  @doc "Lässt `amount` Gold als Münzhaufen (je höchstens #{@pile}) um `(x, y)` im Wasser treiben."
+  def drop_loot(state, _x, _y, amount) when amount <= 0, do: state
+
+  def drop_loot(state, x, y, amount) do
+    piles = amount |> Kernel./(@pile) |> Float.ceil() |> trunc() |> max(1) |> min(6)
+    each = div(amount, piles)
+    extra = amount - each * piles
+
+    Enum.reduce(0..(piles - 1), state, fn i, st ->
+      {a, rng} = :rand.uniform_s(st.rng)
+      {d, rng} = :rand.uniform_s(rng)
+      angle = a * 2 * :math.pi()
+      dist = if piles == 1, do: 0.0, else: 0.3 + d * 0.5
+      px = x + :math.cos(angle) * dist
+      py = y + :math.sin(angle) * dist
+      gold = each + if(i == 0, do: extra, else: 0)
+
+      # Kein Münzhaufen im Land: dann direkt am Todesort
+      {px, py} = if Terrain.land?(st.seed, px, py), do: {x, y}, else: {px, py}
+      pile = %{id: st.next_id, x: px, y: py, gold: gold, born: st.time}
+      %{st | rng: rng, loot: [pile | st.loot], next_id: st.next_id + 1}
+    end)
+  end
+
+  defp loot_pickups(state) do
+    Enum.reduce(Map.keys(state.ships), {state, []}, fn id, {st, ev} ->
+      s = st.ships[id]
+
+      with true <- s.alive? and s.kind == :player,
+           piles when piles != [] <-
+             Enum.filter(st.loot, fn p ->
+               (p.x - s.x) * (p.x - s.x) + (p.y - s.y) * (p.y - s.y) < @loot_r * @loot_r
+             end) do
+        gold = piles |> Enum.map(& &1.gold) |> Enum.sum()
+        ids = Enum.map(piles, & &1.id)
+        st = %{st | loot: Enum.reject(st.loot, &(&1.id in ids))}
+        st = State.update_ship(st, id, &%{&1 | gold: &1.gold + gold})
+        {st, ev ++ [{:loot, id, gold, s.x, s.y}]}
+      else
+        _ -> {st, ev}
+      end
+    end)
   end
 
   # --- Wiederauftauchen ----------------------------------------------------------------

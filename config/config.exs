@@ -4,8 +4,9 @@ import Config
 config :osp,
   start_server: true,
   start_main_world: true,
-  # Anzahl NPC-Händler in der Hauptwelt (Ziele und Leben auf See)
-  bots: 3,
+  # Feste NPC-Händler beim Start (Standard 0: der Director bevölkert die Welt um die Spieler)
+  bots: 0,
+  director: true,
   seed: nil,
   allowed_origins: nil,
   port: 4000

@@ -13,3 +13,6 @@
 | Dev-Betrieb | `./mx` (SSH + Docker) | Kein Elixir lokal. Dev-Server auf Port 4001 (4000 belegt das Schwesterprojekt Pirating). |
 | Welt-Aufbau | `Osp.State` (rein) + `Osp.World` (Prozess-Hülle) | Spiellogik ohne Prozess testbar (41 Tests); Combat/Sailing/Spawn sind reine Module. |
 | Powerups | Entfernt (M2 ausprobiert) | Passen thematisch nicht; Fähigkeiten kommen über Shop-Ausrüstung (docs/upgrades.md). |
+| NPCs | `Osp.Director` (alle 2 s, je Spieler: Soll 2 Händler, 1 Jäger, 18 % Bande); Spawn 28–45 WE entfernt, Despawn ab 100 WE | Welt wirkt lebendig, egal wie wenige Spieler da sind; Kosten bleiben konstant pro Spieler. |
+| Beute | NPCs lassen Kopfgeld als Münzhaufen fallen; Spieler verliert 30 % getragenes Gold beim Tod; Einsammeln durch Überfahren | Risiko/Gewinn: Gold bleibt umkämpft; Bank folgt mit den Häfen (M4). |
+| Respawn | Neue Schiffe starten möglichst >36 WE von Piratenjägern | Kein Spawnkill durch Jäger. |

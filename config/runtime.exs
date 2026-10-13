@@ -4,7 +4,7 @@ import Config
 #
 #   PORT              HTTP-Port im Container (4000)
 #   OSP_SEED          Seed der Hauptwelt (Zahl); ohne Angabe zufällig bei jedem Start
-#   OSP_BOTS          Anzahl Wander-Bots in der Hauptwelt (3)
+#   OSP_BOTS          Anzahl fester NPC-Händler beim Start (0; den Rest macht der Director)
 #   OSP_ORIGINS       erlaubte WebSocket-Origins, kommasepariert (z. B. https://osp.example.com);
 #                     ohne Angabe wird nicht geprüft
 if port = System.get_env("PORT") do

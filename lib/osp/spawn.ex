@@ -34,6 +34,40 @@ defmodule Osp.Spawn do
     {x, y, heading * 2 * :math.pi() - :math.pi(), rng}
   end
 
+  @doc """
+  Punkt im Ring `near..far` WE um `{bx, by}` (z. B. außerhalb des Bildschirms) mit offenem Wasser
+  und mindestens 12 WE Abstand zu allen `others`. `{x, y, heading, rng}` oder `nil`.
+  """
+  @spec pick_around(
+          integer(),
+          [{float(), float()}],
+          {float(), float()},
+          number(),
+          number(),
+          :rand.state()
+        ) ::
+          {float(), float(), float(), :rand.state()} | nil
+  def pick_around(seed, others, {bx, by}, near, far, rng),
+    do: ring(seed, others, bx, by, near, far, rng, @tries)
+
+  defp ring(_seed, _others, _bx, _by, _near, _far, _rng, 0), do: nil
+
+  defp ring(seed, others, bx, by, near, far, rng, tries) do
+    {a, rng} = :rand.uniform_s(rng)
+    {d, rng} = :rand.uniform_s(rng)
+    angle = a * 2 * :math.pi()
+    dist = near + d * (far - near)
+    x = bx + :math.cos(angle) * dist
+    y = by + :math.sin(angle) * dist
+
+    if clear?(seed, x, y) and Enum.all?(others, fn {ox, oy} -> dist(x, y, ox, oy) >= @min_gap end) do
+      {h, rng} = :rand.uniform_s(rng)
+      {x, y, h * 2 * :math.pi() - :math.pi(), rng}
+    else
+      ring(seed, others, bx, by, near, far, rng, tries - 1)
+    end
+  end
+
   @doc "Offenes Wasser mit Abstand `r` rundum?"
   @spec clear?(integer(), number(), number(), number()) :: boolean()
   def clear?(seed, x, y, r \\ @clearance) do

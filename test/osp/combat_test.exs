@@ -129,7 +129,7 @@ defmodule Osp.CombatTest do
     assert Enum.any?(ev, &match?({:splash, _, _}, &1))
   end
 
-  test "NPC-Händler: langsamer, flieht nach Beschuss, taucht nach dem Abschuss wieder auf" do
+  test "NPC-Händler: langsamer, flieht nach Beschuss, verschwindet beim Untergang und lässt Kopfgeld fallen" do
     {bx, by} = open_water()
     s = State.new(@seed, 1)
     s = State.join(s, "a", "Anna")
@@ -138,6 +138,9 @@ defmodule Osp.CombatTest do
       s
       |> State.update_ship("npc-1", &%{&1 | x: bx + 4.0, y: by, heading: 0.0})
       |> State.update_ship("a", &%{&1 | x: bx, y: by, invuln_until: 0})
+
+    bounty = s.ships["npc-1"].bounty
+    assert bounty >= 30 and bounty <= 80
 
     {s, _} = Combat.hurt(s, "npc-1", 1.0, "a", bx, by)
     assert %{from: "a"} = s.ships["npc-1"].flee
@@ -148,10 +151,79 @@ defmodule Osp.CombatTest do
 
     {s, ev} = Combat.hurt(put(s, "npc-1", hp: 0.5), "npc-1", 1.0, "a", npc.x, npc.y)
     assert Enum.any?(ev, &match?({:kill, "a", "npc-1", _, _}, &1))
-    refute s.ships["npc-1"].alive?
+    refute Map.has_key?(s.ships, "npc-1")
+    assert s.ships["a"].kills == 1
 
-    {s, _} = run(s, 8_200)
-    assert s.ships["npc-1"].alive?
+    # Kopfgeld liegt als Beute im Wasser (höchstens 6 Haufen, Summe = Kopfgeld)
+    assert s.loot != [] and length(s.loot) <= 6
+    assert s.loot |> Enum.map(& &1.gold) |> Enum.sum() == bounty
+  end
+
+  test "Beute einsammeln: Gold wandert aufs Schiff, Haufen verschwinden, Ereignis" do
+    s = scene()
+    a = s.ships["a"]
+
+    s = %{
+      s
+      | loot: [
+          %{id: 901, x: a.x + 0.2, y: a.y, gold: 40, born: 0},
+          %{id: 902, x: a.x + 30.0, y: a.y, gold: 99, born: 0}
+        ]
+    }
+
+    {s, ev} = run(s, 50)
+    assert [{:loot, "a", 40, _, _}] = Enum.filter(ev, &match?({:loot, _, _, _, _}, &1))
+    assert s.ships["a"].gold == 40
+    assert [%{id: 902}] = s.loot
+  end
+
+  test "Beute verschwindet nach 60 s" do
+    s = %{scene() | loot: [%{id: 1, x: 500.0, y: 500.0, gold: 10, born: 0}]}
+    {s, _} = run(s, 61_000)
+    assert s.loot == []
+  end
+
+  test "Tod eines Spielers: 30 % des Golds gehen verloren und liegen als Beute da" do
+    s = put(scene(), "b", hp: 1.0, gold: 100)
+    {s, _} = Combat.hurt(s, "b", 2.0, "a", 0.0, 0.0)
+
+    assert s.ships["b"].gold == 70
+    assert s.loot |> Enum.map(& &1.gold) |> Enum.sum() == 30
+    assert s.ships["a"].gold == 0
+  end
+
+  test "NPCs verletzen sich nicht gegenseitig, treffen aber Spieler" do
+    {bx, by} = open_water()
+    s = State.new(@seed, 2)
+    s = State.join(s, "a", "Anna")
+
+    s =
+      s
+      |> State.update_ship("npc-1", &%{&1 | x: bx, y: by, heading: 0.0, kind: :hunter})
+      |> State.update_ship("npc-2", &%{&1 | x: bx, y: by + 2.0, heading: 0.0})
+      |> State.update_ship("a", &%{&1 | x: bx + 8.0, y: by + 8.0, invuln_until: 0})
+
+    {s, _} = Combat.fire(s, "npc-1", :right)
+    {s, _} = run(s, 800)
+    assert s.ships["npc-2"].hp == s.ships["npc-2"].max_hp
+
+    # gleiche Salve auf einen Spieler
+    s = State.update_ship(s, "a", &%{&1 | x: bx, y: by + 2.0})
+    {s, _} = Combat.fire(%{s | balls: []}, "npc-1", :right)
+    s = State.update_ship(s, "npc-1", &%{&1 | reload_r: 0})
+    {s, _} = run(s, 800)
+    assert s.ships["a"].hp < 12.0
+  end
+
+  test "Piratenjäger greifen Spieler an und schießen" do
+    {bx, by} = open_water()
+    s = State.join(State.new(@seed, 0), "a", "Anna")
+    s = State.update_ship(s, "a", &%{&1 | x: bx, y: by, invuln_until: 0, heading: 0.0})
+    s = State.add_npc(s, :hunter, "Jäger", bx + 7.0, by + 1.0, :math.pi())
+
+    {s, ev} = run(s, 20_000)
+    assert Enum.any?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+    assert s.ships["a"].hp < 12.0 or not s.ships["a"].alive?
   end
 
   test "Schnappschuss: eigener Status, Kugeln und Ereignisse nur aus der Umgebung" do
@@ -162,7 +234,7 @@ defmodule Osp.CombatTest do
     snap = State.snapshot_for(s, "a", events)
 
     assert snap.t == "snap" and snap.you == "a"
-    assert %{rl: 0, rr: rr, k: 0, d: 0, rs: 0} = snap.me
+    assert %{g: 0, rl: 0, rr: rr, k: 0, d: 0, rs: 0} = snap.me
     assert rr > 0
     assert length(snap.balls) == 3
     assert [["fire", "a", "right", _, _]] = snap.ev

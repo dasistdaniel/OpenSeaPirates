@@ -77,6 +77,10 @@ function handleEvent(ev) {
     sound.play("kill", 1)
   } else if (kind === "splash") {
     renderer.effect({ t: "ring", x: ev[1], y: ev[2], life: 400 })
+  } else if (kind === "loot") {
+    const [, id, gold, x, y] = ev
+    renderer.effect({ t: "text", x, y, life: 1100, text: "+" + gold + " Gold", color: "#fbbf24" })
+    if (id === myId) sound.play("coin", 1)
   } else if (kind === "respawn") {
     renderer.effect({ t: "ring", x: ev[2], y: ev[3], life: 700 })
   }

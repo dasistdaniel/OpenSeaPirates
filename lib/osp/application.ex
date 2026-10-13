@@ -33,7 +33,8 @@ defmodule Osp.Application do
                Osp.World.start(
                  id: Osp.Web.Socket.main_world(),
                  seed: Application.get_env(:osp, :seed),
-                 bots: Application.get_env(:osp, :bots, 0)
+                 bots: Application.get_env(:osp, :bots, 0),
+                 director: Application.get_env(:osp, :director, false)
                )
            end},
           restart: :temporary

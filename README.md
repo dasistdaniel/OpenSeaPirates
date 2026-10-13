@@ -4,7 +4,9 @@ Offene, prozedurale Piraten-Welt im Browser: Echtzeit-Segeln (WASD, Wind), spät
 Gold, Häfen und Shops. Konzept, Regeln und Roadmap: [docs/handout.md](docs/handout.md),
 Technik-Entscheidungen: [docs/decisions.md](docs/decisions.md).
 
-**Stand: M2 "Kampf"** (auf M1 "Segeln in der Welt" aufgebaut): unendliche Welt (Chunks aus Seed), Kamera,
+**Stand: M3 "Leben in der Welt"** (auf M1 "Segeln" und M2 "Kampf" aufgebaut): NPC-Händler und
+Piratenjäger (auch als Bande) tauchen um die Spieler herum auf, Abschüsse lassen Gold als Beute
+fallen, Gold im HUD, 30 % Verlust beim Tod. Davor: unendliche Welt (Chunks aus Seed), Kamera,
 Wind, Schiffsphysik mit Geländekollision, Spawn nahe anderer Schiffe, Minikarte; Breitseiten (Q/E) mit
 Nachladezeit, Treffer, Tod und Wiederauftauchen mit Schonzeit, NPC-Händler als Ziele.
 Powerups wurden bewusst wieder entfernt (passen nicht zum Thema).
@@ -41,6 +43,8 @@ lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
 lib/osp/wander.ex       Wander-Bot (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Treffer, Tod (rein)
 lib/osp/state.ex        Reiner Weltzustand und Zeitschritt
+lib/osp/director.ex     Bevölkert die Welt um Spieler (Händler, Jäger, Banden), räumt Ferne auf
+lib/osp/hunter.ex       KI der Piratenjäger (querab halten, feuern)
 lib/osp/world.ex        Welt-Prozess (Hülle um State): 20 Hz, Schnappschüsse mit Umkreis (AOI)
 lib/osp/web/            HTTP (Bandit/Plug) und WebSocket-Protokoll
 priv/static/            Client (ES-Module, Canvas 2D, kein Build-Schritt)

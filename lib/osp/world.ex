@@ -62,7 +62,10 @@ defmodule Osp.World do
 
     state = %{
       id: Keyword.fetch!(opts, :id),
-      sim: State.new(seed, Keyword.get(opts, :bots, 0)),
+      sim:
+        State.new(seed, Keyword.get(opts, :bots, 0),
+          director?: Keyword.get(opts, :director, false)
+        ),
       pids: %{},
       refs: %{},
       pending: [],

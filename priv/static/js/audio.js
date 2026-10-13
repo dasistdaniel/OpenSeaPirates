@@ -29,7 +29,7 @@ export class Sound {
     o.stop(t0 + dur)
   }
 
-  // name: boom | hit | kill; vol 0..1 (Entfernung/Beteiligung)
+  // name: boom | hit | kill | coin; vol 0..1 (Entfernung/Beteiligung)
   play(name, vol = 1) {
     if (this.muted) return
     try {
@@ -38,6 +38,7 @@ export class Sound {
       if (name === "boom") this.tone(140, 40, 0.25, "sawtooth", 0.1, vol)
       else if (name === "hit") this.tone(300, 70, 0.18, "square", 0.08, vol)
       else if (name === "kill") this.tone(110, 30, 0.5, "sawtooth", 0.16, vol)
+      else if (name === "coin") { this.tone(900, 1300, 0.08, "square", 0.06, vol); this.tone(1300, 1700, 0.1, "square", 0.05, vol) }
     } catch (_) {}
   }
 }

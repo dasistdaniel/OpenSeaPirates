@@ -1,22 +1,26 @@
 defmodule Osp.State do
   @moduledoc """
-  Reiner Zustand einer Welt (ohne Prozesse): Schiffe, Kugeln, Powerups, Wind, Zufall.
+  Reiner Zustand einer Welt (ohne Prozesse): Schiffe, Kugeln, Beute, Wind, Zufall.
   `Osp.World` ist nur die Hülle (Takt, Verbindungen, Versand); alles Spielerische steht hier und in
   `Osp.Combat`, `Osp.Sailing`, `Osp.Spawn`, `Osp.Wander` – dadurch ohne Prozess testbar.
 
-  Schiffe haben `kind` `:player` oder `:merchant` (NPC-Händler: langsam, flieht bei Beschuss).
+  Schiffe haben `kind`: `:player`, `:merchant` (Händler: langsam, flieht, trägt viel Gold) oder
+  `:hunter` (Piratenjäger: greift Spieler an). NPCs verschwinden beim Untergang und lassen ihr
+  Kopfgeld (`bounty`) als Beute fallen; `Osp.Director` hält die Welt um Spieler herum bevölkert.
   """
 
-  alias Osp.{Combat, Sailing, Spawn, Terrain, Wander}
+  alias Osp.{Combat, Director, Hunter, Sailing, Spawn, Terrain, Wander}
 
   @step_ms 25
   @aoi 45.0
   @wind_every_ms 30_000
   @grace_ms 10_000
-  @colors 6
   @player_hp 12
   @merchant_hp 6
+  @hunter_hp 10
   @merchant_speed 0.6
+  @hunter_speed 0.9
+  @hunter_aggro 28.0
 
   defstruct seed: 0,
             time: 0,
@@ -24,6 +28,9 @@ defmodule Osp.State do
             ships: %{},
             targets: %{},
             balls: [],
+            loot: [],
+            director?: false,
+            dir_at: 0,
             wind: 0,
             wind_at: @wind_every_ms,
             rng: nil,
@@ -34,13 +41,26 @@ defmodule Osp.State do
   def aoi, do: @aoi
   def idle, do: %{up?: false, left?: false, right?: false}
 
-  @doc "Neue Welt mit `merchants` NPC-Händlern."
-  @spec new(integer(), non_neg_integer()) :: t()
-  def new(seed, merchants \\ 0) do
+  @doc """
+  Neue Welt mit `merchants` festen NPC-Händlern. `director?: true` lässt `Osp.Director` laufend
+  Händler, Jäger und Banden um die Spieler herum auftauchen und weit entfernte verschwinden.
+  """
+  @spec new(integer(), non_neg_integer(), keyword()) :: t()
+  def new(seed, merchants \\ 0, opts \\ []) do
     rng = :rand.seed_s(:exsss, seed)
     {dir, rng} = :rand.uniform_s(6, rng)
-    state = %__MODULE__{seed: seed, rng: rng, wind: dir - 1}
-    Enum.reduce(1..merchants//1, state, &add_merchant(&2, &1))
+
+    state = %__MODULE__{
+      seed: seed,
+      rng: rng,
+      wind: dir - 1,
+      director?: Keyword.get(opts, :director?, false)
+    }
+
+    Enum.reduce(1..merchants//1, state, fn n, st ->
+      {x, y, heading, rng} = pick_spawn(st)
+      add_npc(%{st | rng: rng}, :merchant, "Händler #{n}", x, y, heading)
+    end)
   end
 
   # --- Schiffe ----------------------------------------------------------------------
@@ -49,13 +69,28 @@ defmodule Osp.State do
   def update_ship(state, id, fun), do: %{state | ships: Map.update!(state.ships, id, fun)}
 
   defp new_ship(id, name, kind, x, y, heading) do
-    hp = if kind == :merchant, do: @merchant_hp, else: @player_hp
+    hp =
+      case kind do
+        :merchant -> @merchant_hp
+        :hunter -> @hunter_hp
+        :player -> @player_hp
+      end
+
+    # Spieler: gelb/blau/rot/grün; Händler weiß, Jäger schwarz (sofort unterscheidbar)
+    color =
+      case kind do
+        :merchant -> 5
+        :hunter -> 4
+        :player -> :erlang.phash2(id, 4)
+      end
 
     %{
       id: id,
       name: name,
       kind: kind,
-      color: :erlang.phash2(id, @colors),
+      color: color,
+      gold: 0,
+      bounty: 0,
       x: x,
       y: y,
       heading: heading,
@@ -116,17 +151,44 @@ defmodule Osp.State do
     end
   end
 
-  defp pick_spawn(state) do
+  # Startpunkt nahe anderer Schiffe, aber möglichst weit weg von Piratenjägern (sonst stirbt man
+  # direkt nach dem Auftauchen wieder); nach ein paar Versuchen gilt der letzte Vorschlag.
+  defp pick_spawn(state), do: pick_spawn(state, 8)
+
+  defp pick_spawn(state, tries) do
     others = for {_, s} <- state.ships, s.alive?, do: {s.x, s.y}
-    Spawn.pick(state.seed, others, others, state.rng)
+    hunters = for {_, s} <- state.ships, s.alive?, s.kind == :hunter, do: {s.x, s.y}
+    {x, y, heading, rng} = Spawn.pick(state.seed, others, others, state.rng)
+
+    safe? =
+      Enum.all?(hunters, fn {hx, hy} ->
+        :math.sqrt((x - hx) * (x - hx) + (y - hy) * (y - hy)) > @hunter_aggro + 8
+      end)
+
+    if safe? or tries <= 1,
+      do: {x, y, heading, rng},
+      else: pick_spawn(%{state | rng: rng}, tries - 1)
   end
 
-  defp add_merchant(state, n) do
-    id = "npc-#{n}"
-    {x, y, heading, rng} = pick_spawn(state)
-    ship = new_ship(id, "Händler #{n}", :merchant, x, y, heading)
-    %{put_ship(%{state | rng: rng}, id, ship) | targets: Map.put(state.targets, id, nil)}
+  @doc "NPC-Schiff (`:merchant` oder `:hunter`) in die Welt setzen; Kopfgeld wird gewürfelt."
+  def add_npc(state, kind, name, x, y, heading, bonus \\ 0) do
+    id = "npc-#{state.next_id}"
+    {r, rng} = :rand.uniform_s(state.rng)
+
+    {lo, hi} = if kind == :merchant, do: {30, 80}, else: {40, 100}
+    bounty = lo + round(r * (hi - lo)) + bonus
+
+    ship = %{new_ship(id, name, kind, x, y, heading) | bounty: bounty}
+
+    %{
+      put_ship(%{state | rng: rng, next_id: state.next_id + 1}, id, ship)
+      | targets: Map.put(state.targets, id, nil)
+    }
   end
+
+  @doc "NPC samt Steuerzustand entfernen (Untergang oder zu weit weg)."
+  def remove_npc(state, id),
+    do: %{state | ships: Map.delete(state.ships, id), targets: Map.delete(state.targets, id)}
 
   @doc "Neuer Startpunkt für ein wiederauftauchendes Schiff: `{state, x, y, heading}`."
   def respawn_point(state, _id) do
@@ -155,7 +217,9 @@ defmodule Osp.State do
 
   defp step(state, ms) do
     state = %{state | time: state.time + ms}
-    state = state |> turn_wind() |> think_npcs()
+    state = turn_wind(state)
+    {state, npc_events} = think_npcs(state)
+    state = Director.step(state)
     solid? = fn x, y -> Terrain.land?(state.seed, x, y) end
     wind = Sailing.wind_angle(state.wind)
 
@@ -170,10 +234,11 @@ defmodule Osp.State do
       end)
 
     {state, events} = Combat.step(%{state | ships: ships}, ms)
-    {expire(state), events}
+    {expire(state), npc_events ++ events}
   end
 
   defp speed_opts(%{kind: :merchant}, _t), do: [cap_mult: @merchant_speed]
+  defp speed_opts(%{kind: :hunter}, _t), do: [cap_mult: @hunter_speed]
 
   defp speed_opts(_s, _t), do: []
 
@@ -182,37 +247,69 @@ defmodule Osp.State do
 
   defp turn_wind(state), do: state
 
-  # NPCs denken alle 200 ms
-  defp think_npcs(%{time: t} = state) when rem(t, 200) != 0, do: state
+  # NPCs denken alle 200 ms; Jäger feuern dabei auch (Ereignisse gehen mit zurück)
+  defp think_npcs(%{time: t} = state) when rem(t, 200) != 0, do: {state, []}
 
   defp think_npcs(state) do
     solid? = fn x, y -> Terrain.land?(state.seed, x, y) end
 
-    Enum.reduce(Map.keys(state.targets), state, fn id, acc ->
-      ship = acc.ships[id]
+    Enum.reduce(Map.keys(state.targets), {state, []}, fn id, {acc, ev} ->
+      case acc.ships[id] do
+        %{alive?: true, kind: :hunter} = ship ->
+          enemy = nearest_player(acc, ship, @hunter_aggro)
 
-      if ship.alive? do
-        flee =
-          with %{from: from, until: until} <- ship.flee,
-               true <- until > acc.time,
-               %{alive?: true} = attacker <- acc.ships[from] do
-            {attacker.x, attacker.y}
-          else
-            _ -> nil
-          end
+          {keys, fires, target, rng} =
+            Hunter.think(ship, enemy, acc.targets[id], solid?, acc.rng, nil)
 
-        {keys, target, rng} = Wander.think(ship, acc.targets[id], solid?, acc.rng, flee)
+          acc = %{
+            acc
+            | ships: Map.put(acc.ships, id, %{ship | input: keys}),
+              targets: Map.put(acc.targets, id, target),
+              rng: rng
+          }
 
-        %{
-          acc
-          | ships: Map.put(acc.ships, id, %{ship | input: keys}),
-            targets: Map.put(acc.targets, id, target),
-            rng: rng
-        }
-      else
-        acc
+          Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
+            {a, more} = Combat.fire(a, id, side)
+            {a, e ++ more}
+          end)
+
+        %{alive?: true} = ship ->
+          flee =
+            with %{from: from, until: until} <- ship.flee,
+                 true <- until > acc.time,
+                 %{alive?: true} = attacker <- acc.ships[from] do
+              {attacker.x, attacker.y}
+            else
+              _ -> nil
+            end
+
+          {keys, target, rng} = Wander.think(ship, acc.targets[id], solid?, acc.rng, flee)
+
+          {%{
+             acc
+             | ships: Map.put(acc.ships, id, %{ship | input: keys}),
+               targets: Map.put(acc.targets, id, target),
+               rng: rng
+           }, ev}
+
+        _ ->
+          {acc, ev}
       end
     end)
+  end
+
+  # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit)
+  defp nearest_player(state, ship, radius) do
+    state.ships
+    |> Map.values()
+    |> Enum.filter(&(&1.kind == :player and &1.alive? and &1.invuln_until <= state.time))
+    |> Enum.map(&{:math.sqrt(:math.pow(&1.x - ship.x, 2) + :math.pow(&1.y - ship.y, 2)), &1})
+    |> Enum.filter(fn {d, _} -> d <= radius end)
+    |> Enum.min_by(fn {d, _} -> d end, fn -> nil end)
+    |> case do
+      {_, p} -> p
+      nil -> nil
+    end
   end
 
   # Getrennte Spieler nach der Schonfrist entfernen
@@ -260,14 +357,19 @@ defmodule Osp.State do
                 a: s.alive?,
                 iv: s.invuln_until > t,
                 k: s.kills,
-                m: s.kind == :merchant
+                kd: Atom.to_string(s.kind)
               }
             end,
           balls:
             for b <- state.balls, near?.(b.x, b.y) do
               [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]
             end,
+          loot:
+            for p <- state.loot, near?.(p.x, p.y) do
+              [p.id, r2(p.x), r2(p.y), p.gold]
+            end,
           me: %{
+            g: me.gold,
             rl: me.reload_l,
             rr: me.reload_r,
             k: me.kills,
@@ -282,6 +384,9 @@ defmodule Osp.State do
   # Ereignisse als kurze JSON-Arrays; nur wenn sie im Umkreis liegen
   defp encode({:fire, id, side, x, y}, near?),
     do: if(near?.(x, y), do: ["fire", id, to_string(side), r2(x), r2(y)])
+
+  defp encode({:loot, id, gold, x, y}, near?),
+    do: if(near?.(x, y), do: ["loot", id, gold, r2(x), r2(y)])
 
   defp encode({:respawn, id, x, y}, near?),
     do: if(near?.(x, y), do: ["respawn", id, r2(x), r2(y)])

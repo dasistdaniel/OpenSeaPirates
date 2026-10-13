@@ -10,5 +10,5 @@ services:
       - "${HOST_PORT:-4200}:4000"
     environment:
       OSP_SEED: ${OSP_SEED:-}
-      OSP_BOTS: ${OSP_BOTS:-3}
+      OSP_BOTS: ${OSP_BOTS:-0}
       OSP_ORIGINS: ${OSP_ORIGINS:-}

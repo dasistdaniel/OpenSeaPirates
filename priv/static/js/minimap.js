@@ -52,7 +52,7 @@ export class Minimap {
       if (s.i === me.i || !s.a) continue
       ctx.beginPath()
       ctx.arc(x, y, 3, 0, 2 * Math.PI)
-      ctx.fillStyle = s.m ? "#cbd5e1" : SPRITE_COLORS[s.c % SPRITE_COLORS.length]
+      ctx.fillStyle = s.kd === "hunter" ? "#ef4444" : s.kd === "merchant" ? "#e2e8f0" : SPRITE_COLORS[s.c % SPRITE_COLORS.length]
       ctx.fill()
       ctx.strokeStyle = "rgba(0,0,0,0.6)"
       ctx.lineWidth = 1
