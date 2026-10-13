@@ -8,11 +8,17 @@ defmodule Osp.Web.Socket do
     * `{"t":"input","u":bool,"l":bool,"r":bool}` – Tastenzustand
     * `{"t":"chunk","cx":int,"cy":int}` – Geländeblock anfordern
     * `{"t":"fire","side":"left"|"right"}` – Breitseite (Q = links, E = rechts)
+    * `{"t":"dock"}` / `{"t":"undock"}` – im Hafen andocken (F) / ablegen
+    * `{"t":"buy","what":"class"|"upgrade"|"ammo"|"repair","id":"..."}` – im Hafen kaufen
+    * `{"t":"bank","op":"deposit"|"withdraw","amount":int|"all"}` – Gold einlagern/abheben
+    * `{"t":"ammo","kind":"ball"|"chain"|"fire"}` – Munition wählen (1/2/3)
 
   **Server → Client:**
 
     * Text `{"t":"welcome", ...}` – nach dem Beitritt (`you`, `chunk`, `res`, `land`)
     * Text `{"t":"snap", ...}` – Schnappschuss, ca. 20× pro Sekunde
+    * Text `{"t":"shop", ...}` – Hafen-Ansicht (`open: true` mit Angeboten) oder `open: false`,
+      optional mit `error`
     * Binär `<<1, cx::signed-32, cy::signed-32, höhen::binary>>` – Chunk (`Osp.Terrain.chunk/3`)
 
   Die Identität ist vorerst ein anonymes Token aus dem Browser (`localStorage`); später kommen
@@ -27,6 +33,16 @@ defmodule Osp.Web.Socket do
   @max_name 20
   @chunk_burst 120
   @chunk_per_sec 60
+
+  @classes %{
+    "schaluppe" => :schaluppe,
+    "klipper" => :klipper,
+    "brigg" => :brigg,
+    "fregatte" => :fregatte,
+    "galeone" => :galeone
+  }
+  @slots %{"cannons" => :cannons, "hull" => :hull, "sails" => :sails}
+  @ammo %{"ball" => :ball, "chain" => :chain, "fire" => :fire}
 
   def main_world, do: @main_world
 
@@ -48,6 +64,7 @@ defmodule Osp.Web.Socket do
   @impl true
   def handle_info({:osp_snap, snap}, state), do: {:push, {:text, Jason.encode!(snap)}, state}
 
+  def handle_info({:osp_shop, view}, state), do: {:push, {:text, Jason.encode!(view)}, state}
   def handle_info(_other, state), do: {:ok, state}
 
   # --- Nachrichten ---------------------------------------------------------------
@@ -85,6 +102,49 @@ defmodule Osp.Web.Socket do
     {:ok, state}
   end
 
+  defp handle_msg(%{"t" => "dock"}, %{id: id} = state) when id != nil do
+    World.dock(state.world, id)
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "undock"}, %{id: id} = state) when id != nil do
+    World.undock(state.world, id)
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "ammo", "kind" => kind}, %{id: id} = state)
+       when id != nil and kind in ["ball", "chain", "fire"] do
+    World.ammo(state.world, id, @ammo[kind])
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "buy", "what" => what} = msg, %{id: id} = state) when id != nil do
+    case buy_action(what, msg["id"]) do
+      nil -> :ok
+      action -> World.shop(state.world, id, action)
+    end
+
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "bank", "op" => op} = msg, %{id: id} = state)
+       when id != nil and op in ["deposit", "withdraw"] do
+    amount = msg["amount"]
+
+    amount =
+      cond do
+        amount == "all" -> :all
+        is_integer(amount) and amount > 0 and amount < 10_000_000 -> amount
+        true -> nil
+      end
+
+    if amount do
+      World.shop(state.world, id, {if(op == "deposit", do: :deposit, else: :withdraw), amount})
+    end
+
+    {:ok, state}
+  end
+
   defp handle_msg(%{"t" => "chunk", "cx" => cx, "cy" => cy}, %{id: id} = state)
        when id != nil and is_integer(cx) and is_integer(cy) and abs(cx) < 1_000_000 and
               abs(cy) < 1_000_000 do
@@ -102,6 +162,13 @@ defmodule Osp.Web.Socket do
   defp handle_msg(_other, state), do: {:ok, state}
 
   # --- Hilfen ----------------------------------------------------------------------
+
+  # Einkaufswünsche aus dem Netz nur über feste Zuordnungen in Atome übersetzen
+  defp buy_action("class", c), do: if(@classes[c], do: {:class, @classes[c]})
+  defp buy_action("upgrade", s), do: if(@slots[s], do: {:upgrade, @slots[s]})
+  defp buy_action("ammo", k) when k in ["chain", "fire"], do: {:ammo, @ammo[k]}
+  defp buy_action("repair", _), do: :repair
+  defp buy_action(_, _), do: nil
 
   defp valid_token?(token),
     do: byte_size(token) >= 8 and String.match?(token, ~r/^[A-Za-z0-9_-]+$/)

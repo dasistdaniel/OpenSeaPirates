@@ -45,6 +45,21 @@ defmodule Osp.World do
   @doc "Breitseite: `:left` (Q) oder `:right` (E)."
   def fire(world, id, side), do: GenServer.cast(via(world), {:fire, id, side})
 
+  @doc "Andocken (Taste F nahe einem Hafen): Antwort kommt als `{:osp_shop, map}` an den Spieler."
+  def dock(world, id), do: GenServer.cast(via(world), {:dock, id})
+
+  @doc "Ablegen."
+  def undock(world, id), do: GenServer.cast(via(world), {:undock, id})
+
+  @doc """
+  Hafengeschäft (`Osp.State.shop/3`); die neue Hafen-Ansicht (oder ein Fehler) kommt als
+  `{:osp_shop, map}`.
+  """
+  def shop(world, id, action), do: GenServer.cast(via(world), {:shop, id, action})
+
+  @doc "Munitionsart wählen: `:ball`, `:chain` oder `:fire`."
+  def ammo(world, id, kind), do: GenServer.cast(via(world), {:ammo, id, kind})
+
   @doc "Spieler verlässt die Welt sofort."
   def leave(world, id), do: GenServer.cast(via(world), {:leave, id})
 
@@ -111,6 +126,45 @@ defmodule Osp.World do
     {:noreply, %{state | sim: sim, pending: state.pending ++ events}}
   end
 
+  def handle_cast({:dock, id}, state) do
+    {sim, result} = State.dock(state.sim, id)
+    state = %{state | sim: sim}
+
+    case result do
+      :ok ->
+        reply_shop(state, id, State.shop_view(sim, id))
+
+      {:error, reason} ->
+        reply_shop(state, id, %{t: "shop", open: false, error: Atom.to_string(reason)})
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:undock, id}, state) do
+    {sim, _} = State.undock(state.sim, id)
+    reply_shop(state, id, %{t: "shop", open: false})
+    {:noreply, %{state | sim: sim}}
+  end
+
+  def handle_cast({:shop, id, action}, state) do
+    {sim, result} = State.shop(state.sim, id, action)
+
+    case result do
+      {:ok, view} ->
+        reply_shop(state, id, view)
+
+      {:error, reason} ->
+        view = State.shop_view(sim, id) || %{t: "shop", open: false}
+        reply_shop(state, id, Map.put(view, :error, Atom.to_string(reason)))
+    end
+
+    {:noreply, %{state | sim: sim}}
+  end
+
+  def handle_cast({:ammo, id, kind}, state),
+    do: {:noreply, %{state | sim: State.select_ammo(state.sim, id, kind)}}
+
   def handle_cast({:leave, id}, state) do
     state = detach(state, id)
     {:noreply, %{state | sim: State.leave(state.sim, id), pids: Map.delete(state.pids, id)}}
@@ -145,6 +199,11 @@ defmodule Osp.World do
   def handle_info(_other, state), do: {:noreply, state}
 
   # --- Hilfen ----------------------------------------------------------------------
+
+  defp reply_shop(state, id, view) do
+    if pid = state.pids[id], do: send(pid, {:osp_shop, view})
+    :ok
+  end
 
   defp send_snapshots(%{pids: pids}, _events) when map_size(pids) == 0, do: :ok
 

@@ -9,13 +9,12 @@ defmodule Osp.State do
   Kopfgeld (`bounty`) als Beute fallen; `Osp.Director` hält die Welt um Spieler herum bevölkert.
   """
 
-  alias Osp.{Combat, Director, Hunter, Sailing, Spawn, Terrain, Wander}
+  alias Osp.{Combat, Director, Hunter, Ports, Sailing, Ships, Shop, Spawn, Terrain, Wander}
 
   @step_ms 25
   @aoi 45.0
   @wind_every_ms 30_000
   @grace_ms 10_000
-  @player_hp 12
   @merchant_hp 6
   @hunter_hp 10
   @merchant_speed 0.6
@@ -69,11 +68,22 @@ defmodule Osp.State do
   def update_ship(state, id, fun), do: %{state | ships: Map.update!(state.ships, id, fun)}
 
   defp new_ship(id, name, kind, x, y, heading) do
+    # Spieler: Klasse und Upgrades bestimmen die Werte; NPCs bekommen ein festes Aussehen
+    {class, upgrades} =
+      case kind do
+        :player -> {Ships.fresh().class, Ships.fresh().upgrades}
+        :merchant -> {:klipper, Ships.fresh().upgrades}
+        :hunter -> {:brigg, Ships.fresh().upgrades}
+      end
+
+    base = %{class: class, upgrades: upgrades}
+    stats = Ships.stats(base)
+
     hp =
       case kind do
         :merchant -> @merchant_hp
         :hunter -> @hunter_hp
-        :player -> @player_hp
+        :player -> stats.max_hp
       end
 
     # Spieler: gelb/blau/rot/grün; Händler weiß, Jäger schwarz (sofort unterscheidbar)
@@ -88,9 +98,20 @@ defmodule Osp.State do
       id: id,
       name: name,
       kind: kind,
+      class: class,
+      upgrades: upgrades,
       color: color,
       gold: 0,
+      bank: 0,
       bounty: 0,
+      ammo: %{},
+      ammo_sel: :ball,
+      docked: nil,
+      slow_until: 0,
+      burn_until: 0,
+      burn_next: 0,
+      burn_by: nil,
+      radius: stats.radius,
       x: x,
       y: y,
       heading: heading,
@@ -200,6 +221,79 @@ defmodule Osp.State do
 
   def fire(state, id, side), do: Combat.fire(state, id, side)
 
+  # --- Hafen: Andocken, Shop, Munition ----------------------------------------------------
+
+  @doc """
+  Andocken: nur lebende Spieler, langsam (< 0,7 WE/s) und in Reichweite eines Hafens. Das Schiff
+  bleibt dann stehen. `{state, :ok | {:error, grund}}`, Gründe `:no_port`, `:too_fast`, `:docked`.
+  """
+  def dock(state, id) do
+    with %{alive?: true, kind: :player, docked: nil} = s <- state.ships[id],
+         %{} = port <- Ports.dockable(state.seed, s.x, s.y) || {:error, :no_port},
+         true <- s.speed < 0.7 or {:error, :too_fast} do
+      ship = %{s | docked: %{id: port.id, name: port.name}, speed: 0.0, input: idle()}
+      {put_ship(state, id, ship), :ok}
+    else
+      %{docked: %{}} -> {state, {:error, :docked}}
+      {:error, _} = err -> {state, err}
+      _ -> {state, {:error, :no_port}}
+    end
+  end
+
+  def undock(state, id) do
+    case state.ships[id] do
+      %{docked: %{}} = s -> {put_ship(state, id, %{s | docked: nil}), :ok}
+      _ -> {state, {:error, :not_docked}}
+    end
+  end
+
+  @doc """
+  Hafengeschäft im angedockten Zustand. `action`: `{:class, atom}`, `{:upgrade, slot}`,
+  `{:ammo, kind}`, `:repair`, `{:deposit, n | :all}`, `{:withdraw, n | :all}`.
+  `{state, {:ok, shop_view} | {:error, grund}}`.
+  """
+  def shop(state, id, action) do
+    case state.ships[id] do
+      %{docked: %{name: port}, alive?: true} = ship ->
+        result =
+          case action do
+            {:class, c} -> Shop.buy_class(ship, c)
+            {:upgrade, slot} -> Shop.buy_upgrade(ship, slot)
+            {:ammo, kind} -> Shop.buy_ammo(ship, kind)
+            :repair -> Shop.repair(ship)
+            {:deposit, n} -> Shop.deposit(ship, n)
+            {:withdraw, n} -> Shop.withdraw(ship, n)
+            _ -> {:error, :unknown}
+          end
+
+        case result do
+          {:ok, ship} -> {put_ship(state, id, ship), {:ok, Shop.view(ship, port)}}
+          {:error, reason} -> {state, {:error, reason}}
+        end
+
+      _ ->
+        {state, {:error, :not_docked}}
+    end
+  end
+
+  @doc "Aktuelle Hafen-Ansicht des Spielers oder `nil`."
+  def shop_view(state, id) do
+    case state.ships[id] do
+      %{docked: %{name: port}} = ship -> Shop.view(ship, port)
+      _ -> nil
+    end
+  end
+
+  @doc "Munitionsart wählen (`:ball`, `:chain`, `:fire`)."
+  def select_ammo(state, id, kind) when kind in [:ball, :chain, :fire] do
+    case state.ships[id] do
+      nil -> state
+      ship -> put_ship(state, id, %{ship | ammo_sel: kind})
+    end
+  end
+
+  def select_ammo(state, _id, _kind), do: state
+
   # --- Zeitschritt --------------------------------------------------------------------
 
   @doc "Spielzeit um `dt_ms` voranbringen (in Schritten à #{@step_ms} ms). `{state, events}`."
@@ -225,7 +319,7 @@ defmodule Osp.State do
 
     ships =
       Map.new(state.ships, fn {id, s} ->
-        if s.alive? do
+        if s.alive? and s.docked == nil do
           moved = Sailing.step(s, s.input, ms / 1000, wind, solid?, speed_opts(s, state.time))
           {id, Map.merge(s, Map.take(moved, [:x, :y, :heading, :speed]))}
         else
@@ -237,10 +331,18 @@ defmodule Osp.State do
     {expire(state), npc_events ++ events}
   end
 
-  defp speed_opts(%{kind: :merchant}, _t), do: [cap_mult: @merchant_speed]
-  defp speed_opts(%{kind: :hunter}, _t), do: [cap_mult: @hunter_speed]
+  # Tempo- und Wendigkeitsfaktoren: Spieler aus Klasse/Upgrades, NPCs aus ihrer Art; Kettenkugel bremst
+  defp speed_opts(ship, t) do
+    {cap, turn} =
+      case ship.kind do
+        :merchant -> {@merchant_speed, 1.0}
+        :hunter -> {@hunter_speed, 1.0}
+        :player -> {Ships.stats(ship).speed_mult, Ships.stats(ship).turn_mult}
+      end
 
-  defp speed_opts(_s, _t), do: []
+    slow = if ship.slow_until > t, do: 0.5, else: 1.0
+    [cap_mult: cap * slow, turn_mult: turn]
+  end
 
   defp turn_wind(%{time: t, wind_at: at} = state) when t >= at,
     do: %{state | wind: Integer.mod(state.wind - 1, 6), wind_at: at + @wind_every_ms}
@@ -357,12 +459,21 @@ defmodule Osp.State do
                 a: s.alive?,
                 iv: s.invuln_until > t,
                 k: s.kills,
-                kd: Atom.to_string(s.kind)
+                kd: Atom.to_string(s.kind),
+                cl: Atom.to_string(s.class),
+                rd: s.radius,
+                dk: s.docked != nil,
+                bu: s.burn_until > t,
+                sl: s.slow_until > t
               }
             end,
           balls:
             for b <- state.balls, near?.(b.x, b.y) do
               [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]
+            end,
+          ports:
+            for p <- Ports.near(state.seed, me.x, me.y, @aoi) do
+              [p.id, p.x, p.y, p.name, p.land]
             end,
           loot:
             for p <- state.loot, near?.(p.x, p.y) do
@@ -370,6 +481,15 @@ defmodule Osp.State do
             end,
           me: %{
             g: me.gold,
+            b: me.bank,
+            am: %{c: Map.get(me.ammo, :chain, 0), f: Map.get(me.ammo, :fire, 0)},
+            as: Atom.to_string(me.ammo_sel),
+            dk: me.docked && me.docked.name,
+            np:
+              case Ports.dockable(state.seed, me.x, me.y) do
+                nil -> nil
+                port -> port.name
+              end,
             rl: me.reload_l,
             rr: me.reload_r,
             k: me.kills,

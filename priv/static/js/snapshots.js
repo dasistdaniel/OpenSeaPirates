@@ -59,6 +59,6 @@ export class Snapshots {
     const balls = a.balls.map(([id, x, y, vx, vy]) => [id, x + vx * dt, y + vy * dt])
 
     const last = list[list.length - 1]
-    return { ships, balls, loot: b.loot, w: b.w, wi: b.wi, you: b.you, me: last.me, last }
+    return { ships, balls, loot: b.loot, ports: b.ports, w: b.w, wi: b.wi, you: b.you, me: last.me, last }
   }
 }

@@ -140,4 +140,47 @@ defmodule Osp.WorldTest do
     assert ship.x > start_x
     assert ship.x < shore
   end
+
+  test "Andocken über die Welt: Hafen-Ansicht kommt als Nachricht, Käufe wirken, Ablegen schließt" do
+    w = start_world()
+    {:ok, _} = World.join(w, "p1", "Anna")
+    seed = World.seed(w)
+
+    port =
+      Enum.find_value(-8..8, fn cx ->
+        Enum.find_value(-8..8, fn cy -> Osp.Ports.in_chunk(seed, cx, cy) end)
+      end)
+
+    :sys.replace_state(GenServer.whereis(World.via(w)), fn s ->
+      ship = %{s.sim.ships["p1"] | x: port.x + 1.0, y: port.y, speed: 0.0, gold: 500}
+      %{s | sim: Osp.State.put_ship(s.sim, "p1", ship)}
+    end)
+
+    World.dock(w, "p1")
+    assert_receive {:osp_shop, %{open: true, port: name, gold: 500}}, 500
+    assert name == port.name
+
+    World.shop(w, "p1", {:upgrade, :hull})
+    assert_receive {:osp_shop, %{open: true, gold: 380}}, 500
+
+    World.shop(w, "p1", {:class, :galeone})
+    assert_receive {:osp_shop, %{open: true, error: "no_gold"}}, 500
+
+    World.undock(w, "p1")
+    assert_receive {:osp_shop, %{open: false}}, 500
+    assert World.state(w).ships["p1"].docked == nil
+  end
+
+  test "Andocken ohne Hafen meldet einen Fehler" do
+    w = start_world()
+    {:ok, _} = World.join(w, "p1", "Anna")
+
+    :sys.replace_state(GenServer.whereis(World.via(w)), fn s ->
+      ship = %{s.sim.ships["p1"] | x: 5000.0, y: 5000.0}
+      %{s | sim: Osp.State.put_ship(s.sim, "p1", ship)}
+    end)
+
+    World.dock(w, "p1")
+    assert_receive {:osp_shop, %{open: false, error: "no_port"}}, 500
+  end
 end

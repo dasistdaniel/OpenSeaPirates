@@ -16,3 +16,6 @@
 | NPCs | `Osp.Director` (alle 2 s, je Spieler: Soll 2 Händler, 1 Jäger, 18 % Bande); Spawn 28–45 WE entfernt, Despawn ab 100 WE | Welt wirkt lebendig, egal wie wenige Spieler da sind; Kosten bleiben konstant pro Spieler. |
 | Beute | NPCs lassen Kopfgeld als Münzhaufen fallen; Spieler verliert 30 % getragenes Gold beim Tod; Einsammeln durch Überfahren | Risiko/Gewinn: Gold bleibt umkämpft; Bank folgt mit den Häfen (M4). |
 | Respawn | Neue Schiffe starten möglichst >36 WE von Piratenjägern | Kein Spawnkill durch Jäger. |
+| Häfen | Ein Hafen je Chunk mit 16 % Chance, Ankerplatz im Wasser an einer Küste; Schutzzone 3,5 WE, Andocken ab 2,8 WE und Tempo < 0,7 | Deterministisch aus dem Seed, kein Speicher; Ergebnis je Chunk im ETS-Cache (`PortCache`). |
+| Schiffe | Fünf Klassen aus Kenney-Einzelteilen, vorberechnete PNGs (`scripts/ship_sprites.py`) je Klasse und Farbe | Browser muss nichts zusammensetzen; Klasse und Upgrades gelten dauerhaft (nur Gold beim Tod geht verloren). |
+| Shop | Regeln und Preise ausschließlich im Server (`Osp.Shop`); Client zeigt nur die Ansicht | Kein Cheaten über den Client; eine Stelle für Balancing. |

@@ -36,16 +36,19 @@ defmodule Osp.Sailing do
 
   @doc """
   Ein Zeitschritt `dt` (Sekunden) für ein Schiff. `opts`: `:cap_mult` (Faktor aufs Höchsttempo,
-  z. B. Händler 0,6 oder Boost 1,9) und `:accel_mult` (Faktor auf die Beschleunigung).
+  z. B. Händler 0,6), `:turn_mult` (Faktor auf die Wendigkeit) und `:accel_mult` (Beschleunigung).
+  Der Rumpfradius kommt aus `ship.radius` (sonst #{@ship_r} WE).
   """
   @spec step(ship(), keys(), float(), float(), (number(), number() -> boolean()), keyword()) ::
           ship()
   def step(ship, keys, dt, wind_angle, solid?, opts \\ []) do
     cap_mult = Keyword.get(opts, :cap_mult, 1.0)
     accel = @accel * Keyword.get(opts, :accel_mult, 1.0)
+    turn_mult = Keyword.get(opts, :turn_mult, 1.0)
+    r = Map.get(ship, :radius, @ship_r)
     turn = (if(keys.right?, do: 1, else: 0) - if(keys.left?, do: 1, else: 0)) * 1.0
     grip = 0.45 + 0.55 * min(1.0, ship.speed / @max_speed)
-    heading = ship.heading + turn * @turn * grip * dt
+    heading = ship.heading + turn * @turn * turn_mult * grip * dt
 
     cap = @max_speed * cap_mult * wind_factor(heading, wind_angle)
 
@@ -61,11 +64,11 @@ defmodule Osp.Sailing do
     ship = %{ship | heading: heading, speed: speed}
 
     cond do
-      not blocked?(solid?, nx, ny) ->
+      not blocked?(solid?, nx, ny, r) ->
         %{ship | x: nx, y: ny}
 
       true ->
-        case push_out(solid?, nx, ny) do
+        case push_out(solid?, nx, ny, r) do
           {px, py} -> %{ship | x: px, y: py, speed: speed * @bump_speed}
           nil -> %{ship | speed: speed * @bump_speed}
         end
@@ -73,11 +76,11 @@ defmodule Osp.Sailing do
   end
 
   @doc "Berührt das Schiff an `(x, y)` Land? (Mittelpunkt + 8 Punkte auf dem Rumpfkreis)"
-  @spec blocked?((number(), number() -> boolean()), number(), number()) :: boolean()
-  def blocked?(solid?, x, y), do: blocked_points(solid?, x, y) != []
+  @spec blocked?((number(), number() -> boolean()), number(), number(), number()) :: boolean()
+  def blocked?(solid?, x, y, r \\ @ship_r), do: blocked_points(solid?, x, y, r) != []
 
-  defp blocked_points(solid?, x, y) do
-    for {dx, dy} <- sample_offsets(), solid?.(x + dx * @ship_r, y + dy * @ship_r), do: {dx, dy}
+  defp blocked_points(solid?, x, y, r) do
+    for {dx, dy} <- sample_offsets(), solid?.(x + dx * r, y + dy * r), do: {dx, dy}
   end
 
   @offsets (for k <- 0..7 do
@@ -87,11 +90,11 @@ defmodule Osp.Sailing do
   defp sample_offsets, do: @offsets
 
   # Schiff aus dem Land schieben: weg von den berührenden Punkten, in kleinen Schritten
-  defp push_out(solid?, x, y), do: push_out(solid?, x, y, 24)
-  defp push_out(_solid?, _x, _y, 0), do: nil
+  defp push_out(solid?, x, y, r), do: push_out(solid?, x, y, r, 24)
+  defp push_out(_solid?, _x, _y, _r, 0), do: nil
 
-  defp push_out(solid?, x, y, n) do
-    case blocked_points(solid?, x, y) do
+  defp push_out(solid?, x, y, r, n) do
+    case blocked_points(solid?, x, y, r) do
       [] ->
         {x, y}
 
@@ -101,7 +104,7 @@ defmodule Osp.Sailing do
 
         if len < 1.0e-6,
           do: nil,
-          else: push_out(solid?, x - sx / len * 0.04, y - sy / len * 0.04, n - 1)
+          else: push_out(solid?, x - sx / len * 0.04, y - sy / len * 0.04, r, n - 1)
     end
   end
 end

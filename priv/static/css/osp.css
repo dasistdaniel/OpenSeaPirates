@@ -131,3 +131,94 @@ kbd {
   font-family: inherit;
   font-size: 11px;
 }
+
+/* --- Hafen-Oberfläche ------------------------------------------------------------ */
+#shop {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(2, 8, 16, 0.55);
+  backdrop-filter: blur(2px);
+}
+#shop[hidden] { display: none; }
+
+#shop .panel {
+  width: min(96vw, 980px);
+  max-height: 92vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(8, 20, 34, 0.96);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  padding: 18px 20px 20px;
+}
+#shop header { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; }
+#shop header > div:first-child { flex: 1; }
+#shop .kicker { color: var(--gold); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; }
+#shop h2 { margin: 2px 0 0; font-size: 26px; }
+#shop h3 { margin: 16px 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+#shop h3 small, #shop small { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+#shop h3:first-child { margin-top: 0; }
+#shop .money { display: grid; text-align: right; font-weight: 800; font-size: 18px; color: var(--gold); }
+#shop .money .muted, #shop .muted { color: var(--muted); font-weight: 600; font-size: 12px; }
+#shop .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; }
+@media (max-width: 800px) { #shop .cols { grid-template-columns: 1fr; } }
+
+#shop .cards { display: grid; gap: 8px; }
+#shop .card {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+#shop .card.current { border-color: rgba(251, 191, 36, 0.6); background: rgba(251, 191, 36, 0.07); }
+#shop .card img { width: 54px; height: 76px; object-fit: contain; }
+#shop .card h4 { margin: 0; font-size: 15px; }
+#shop .card .blurb { margin: 2px 0; color: var(--muted); font-size: 12px; }
+#shop .card .stats { margin: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+#shop .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+#shop .row .grow { flex: 1; display: grid; gap: 1px; }
+#shop .row.bank { flex-wrap: wrap; border: 0; }
+#shop .pips { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+#shop .pips i { width: 12px; height: 8px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); }
+#shop .pips i.on { background: var(--gold); }
+
+#shop button {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--gold);
+  color: #1c1204;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s, transform 0.1s;
+}
+#shop button:hover:not(:disabled) { filter: brightness(1.1); }
+#shop button:active:not(:disabled) { transform: scale(0.97); }
+#shop button:disabled { background: rgba(255, 255, 255, 0.1); color: var(--muted); cursor: not-allowed; }
+#shop button.ghost { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+#shop .tag { padding: 4px 9px; border-radius: 999px; background: rgba(251, 191, 36, 0.18); color: var(--gold); font-size: 12px; font-weight: 700; }
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.92);
+  font-size: 14px;
+}
+#toast.bad { background: rgba(185, 28, 28, 0.92); }
+#toast[hidden] { display: none; }

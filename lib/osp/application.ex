@@ -7,6 +7,7 @@ defmodule Osp.Application do
   def start(_type, _args) do
     children =
       [
+        Osp.PortCache,
         {Registry, keys: :unique, name: Osp.WorldRegistry},
         {DynamicSupervisor, name: Osp.WorldSupervisor, strategy: :one_for_one}
       ] ++ server() ++ main_world()

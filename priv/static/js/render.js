@@ -3,7 +3,7 @@
 const PI = Math.PI
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
-const SHIP_LEN_WE = 1.5
+const WE_PER_PX = 1.5 / 113 // Maßstab der Schiffsbilder
 const RELOAD_MS = 1800
 
 export class Renderer {
@@ -16,13 +16,12 @@ export class Renderer {
     this.feed = [] // Abschuss-Meldungen
     this.lastWake = new Map()
 
-    this.sprites = {}
-    for (const c of SPRITE_COLORS) {
-      for (let n = 0; n < 3; n++) {
-        const im = new Image()
-        im.src = `/images/ship_${c}_${n}.png`
-        this.sprites[`${c}_${n}`] = im
-      }
+    this.sprites = {} // "klasse_farbe" -> Image (lazy)
+    this.tiles = {}
+    for (const n of ["tile_13", "tile_60"]) {
+      const im = new Image()
+      im.src = `/images/tiles/${n}.png`
+      this.tiles[n] = im
     }
     this.expl = [1, 2, 3].map((n) => {
       const im = new Image()
@@ -98,6 +97,7 @@ export class Renderer {
 
     this.drawChunks(cam)
     this.drawWaves(cam, now)
+    this.drawPorts(state, cam, now)
     this.drawLoot(state, cam, now)
     this.drawWakes(state, now, cam)
     for (const s of state.ships) if (s !== me && s.a) this.drawShip(s, cam, false, now)
@@ -199,21 +199,53 @@ export class Renderer {
     }
   }
 
+  sprite(cl, color) {
+    const key = `${cl}_${SPRITE_COLORS[color % SPRITE_COLORS.length]}`
+    let im = this.sprites[key]
+    if (!im) {
+      im = new Image()
+      im.src = `/images/ships/${key}.png`
+      this.sprites[key] = im
+    }
+    return im
+  }
+
   drawShip(s, cam, mine, now) {
     const { ctx, scale } = this
     const cx = this.sx(s.x, cam), cy = this.sy(s.y, cam)
     const ratio = Math.max(s.hp / s.mh, 0)
-    const state = ratio > 0.66 ? 0 : ratio > 0.33 ? 1 : 2
-    const im = this.sprites[`${SPRITE_COLORS[s.c % SPRITE_COLORS.length]}_${state}`]
-    const len = SHIP_LEN_WE * scale, wid = (len * 66) / 113
+    const im = this.sprite(s.cl, s.c)
 
     ctx.save()
     ctx.translate(cx, cy)
     if (s.iv && Math.floor(now / 120) % 2) ctx.globalAlpha = 0.45
     ctx.rotate(s.h - PI / 2) // Sprite: Bug zeigt nach unten (+90°)
-    if (im.complete) ctx.drawImage(im, -wid / 2, -len / 2, wid, len)
-    else { ctx.fillStyle = "#ccc"; ctx.fillRect(-wid / 2, -len / 2, wid, len) }
+    if (im.complete && im.naturalWidth) {
+      const w = im.naturalWidth * WE_PER_PX * scale, h = im.naturalHeight * WE_PER_PX * scale
+      ctx.drawImage(im, -w / 2, -h / 2, w, h)
+    } else {
+      ctx.fillStyle = "#ccc"
+      ctx.fillRect(-0.3 * scale, -0.7 * scale, 0.6 * scale, 1.4 * scale)
+    }
     ctx.restore()
+
+    const top = (s.rd || 0.36) * scale + 0.55 * scale // Höhe über dem Schiff für Name und Balken
+
+    if (s.sl) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, 0.85 * scale, 0, 2 * PI)
+      ctx.strokeStyle = "rgba(125,211,252,0.8)"
+      ctx.setLineDash([3, 5])
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+    if (s.bu) {
+      ctx.font = `${Math.round(0.5 * scale)}px sans-serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText("🔥", cx + Math.sin(now / 90) * 4, cy - 0.2 * scale)
+    }
 
     // Name und Lebensbalken
     ctx.font = `600 ${Math.round(0.26 * scale)}px sans-serif`
@@ -222,13 +254,54 @@ export class Renderer {
     ctx.fillStyle = mine ? "#fde68a" : s.kd === "hunter" ? "#fca5a5" : s.kd === "merchant" ? "#cbd5e1" : "rgba(255,255,255,0.92)"
     ctx.strokeStyle = "rgba(0,0,0,0.55)"
     ctx.lineWidth = 3
-    ctx.strokeText(s.n, cx, cy - 0.95 * scale)
-    ctx.fillText(s.n, cx, cy - 0.95 * scale)
+    ctx.strokeText(s.n, cx, cy - top)
+    ctx.fillText(s.n, cx, cy - top)
     const bw = 1.0 * scale, bh = 0.1 * scale
     ctx.fillStyle = "rgba(0,0,0,0.5)"
-    ctx.fillRect(cx - bw / 2, cy - 0.9 * scale, bw, bh)
+    ctx.fillRect(cx - bw / 2, cy - top + 0.05 * scale, bw, bh)
     ctx.fillStyle = ratio > 0.5 ? "#4ade80" : ratio > 0.25 ? "#fbbf24" : "#f87171"
-    ctx.fillRect(cx - bw / 2, cy - 0.9 * scale, bw * ratio, bh)
+    ctx.fillRect(cx - bw / 2, cy - top + 0.05 * scale, bw * ratio, bh)
+  }
+
+  // Häfen: Schutzzone, Steg zur Küste, Turm, Name
+  drawPorts(state, cam, now) {
+    const { ctx, scale } = this
+    for (const [, x, y, name, land] of state.ports || []) {
+      const cx = this.sx(x, cam), cy = this.sy(y, cam)
+
+      ctx.beginPath()
+      ctx.arc(cx, cy, 3.5 * scale, 0, 2 * PI)
+      ctx.fillStyle = "rgba(74,222,128,0.07)"
+      ctx.fill()
+      ctx.setLineDash([8, 8])
+      ctx.lineDashOffset = -now / 60
+      ctx.strokeStyle = "rgba(134,239,172,0.55)"
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // Steg (zwei Brückenstücke) und Turm Richtung Land
+      const place = (img, dist, size, rot) => {
+        if (!img.complete || !img.naturalWidth) return
+        ctx.save()
+        ctx.translate(cx + Math.cos(land) * dist * scale, cy + Math.sin(land) * dist * scale)
+        ctx.rotate(land + rot)
+        ctx.drawImage(img, (-size * scale) / 2, (-size * scale) / 2, size * scale, size * scale)
+        ctx.restore()
+      }
+      place(this.tiles.tile_60, 1.7, 1.15, 0)
+      place(this.tiles.tile_60, 2.8, 1.15, 0)
+      place(this.tiles.tile_13, 4.0, 1.5, 0)
+
+      ctx.font = `700 ${Math.round(0.34 * scale)}px sans-serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "bottom"
+      ctx.fillStyle = "#fef3c7"
+      ctx.strokeStyle = "rgba(0,0,0,0.65)"
+      ctx.lineWidth = 4
+      ctx.strokeText("⚓ " + name, cx, cy - 1.1 * scale)
+      ctx.fillText("⚓ " + name, cx, cy - 1.1 * scale)
+    }
   }
 
   drawParts(now, cam) {
@@ -320,9 +393,9 @@ export class Renderer {
     if (!me || !mine) return
 
     const W = canvas.width, H = canvas.height
-    const bx = W / 2 - 150 * u, by = H - 70 * u
+    const bx = W / 2 - 150 * u, by = H - 94 * u
     ctx.fillStyle = "rgba(8,20,34,0.72)"
-    ctx.fillRect(bx - 8 * u, by - 12 * u, 316 * u, 76 * u)
+    ctx.fillRect(bx - 8 * u, by - 12 * u, 316 * u, 92 * u)
 
     const ratio = Math.max(me.hp / me.mh, 0)
     ctx.fillStyle = "rgba(255,255,255,0.12)"
@@ -353,10 +426,29 @@ export class Renderer {
     ctx.fillStyle = "#fbbf24"
     ctx.font = `800 ${14 * u}px sans-serif`
     ctx.fillText(`🪙 ${mine.g}`, bx, by + 50 * u)
+
+    // Munition: 1 Vollkugeln, 2 Kettenkugel, 3 Brandgeschoss (gewählte hervorgehoben)
+    const ammo = [["ball", "1 Kugel", "∞"], ["chain", "2 Kette", mine.am.c], ["fire", "3 Brand", mine.am.f]]
+    ctx.font = `700 ${11 * u}px sans-serif`
+    ammo.forEach(([k, label, n], i) => {
+      const ax = bx + (76 + i * 78) * u
+      ctx.fillStyle = mine.as === k ? "#fde68a" : "#64748b"
+      ctx.fillText(`${label} ${n}`, ax, by + 50 * u)
+    })
+
+    if (mine.np && !mine.dk && me.a) {
+      ctx.textAlign = "center"
+      ctx.fillStyle = "rgba(8,20,34,0.78)"
+      ctx.fillRect(W / 2 - 140 * u, by - 46 * u, 280 * u, 28 * u)
+      ctx.fillStyle = me.v < 0.7 ? "#86efac" : "#fde68a"
+      ctx.font = `700 ${13 * u}px sans-serif`
+      ctx.fillText(me.v < 0.7 ? `F – in ${mine.np} andocken` : `${mine.np}: langsamer fahren zum Andocken`, W / 2, by - 31 * u)
+    }
+    ctx.textAlign = "left"
     ctx.textAlign = "right"
     ctx.fillStyle = "#cbd5e1"
     ctx.font = `700 ${12 * u}px sans-serif`
-    ctx.fillText(`Abschüsse ${mine.k}  ·  Tode ${mine.d}`, bx + 300 * u, by + 50 * u)
+    ctx.fillText(`Abschüsse ${mine.k} · Tode ${mine.d}`, bx + 300 * u, by + 66 * u)
 
     // Abschuss-Meldungen oben rechts
     this.feed = this.feed.filter((f) => f.until > now)

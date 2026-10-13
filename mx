@@ -24,7 +24,7 @@ RUN="docker run -u \$(id -u):\$(id -g) -e HOME=/tmp -e MIX_HOME=/mix -e HEX_HOME
 SETUP="mix local.hex --force -q; mix local.rebar --force -q; mix deps.get"
 
 if [ "${1:-}" = serve ]; then
-  ssh $HOST "docker rm -f osp-web >/dev/null 2>&1 || true; $RUN -p 4001:4000 -d --name osp-web --restart unless-stopped $IMG sh -c '$SETUP; mix run --no-halt'"
+  ssh $HOST "docker rm -f osp-web >/dev/null 2>&1 || true; $RUN -p 4001:4000 ${OSP_SEED:+-e OSP_SEED=$OSP_SEED} -d --name osp-web --restart unless-stopped $IMG sh -c '$SETUP; mix run --no-halt'"
   echo "Dev-Server startet (erster Start dauert: Deps). Log: ./mx logs   URL: http://192.168.178.20:4001"
   exit 0
 fi

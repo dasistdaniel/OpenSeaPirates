@@ -10,7 +10,7 @@ defmodule Osp.Combat do
     * `{:splash, x, y}`, `{:respawn, id, x, y}`, `{:loot, id, gold, x, y}` (Beute eingesammelt)
   """
 
-  alias Osp.{State, Terrain}
+  alias Osp.{Ports, Ships, State, Terrain}
 
   @reload_ms 1_800
   @ball_speed 6.0
@@ -23,26 +23,30 @@ defmodule Osp.Combat do
   @loot_ttl_ms 60_000
   @death_loss 0.3
   @pile 25
+  @slow_ms 3_000
+  @burn_ms 3_000
+  @burn_tick_ms 1_000
 
   def reload_ms, do: @reload_ms
   def respawn_ms, do: @respawn_ms
 
   # --- Eingaben -------------------------------------------------------------------
 
-  @doc "Seitliche Breitseite (`:left` = Backbord/Q, `:right` = Steuerbord/E)."
+  @doc """
+  Seitliche Breitseite (`:left` = Backbord/Q, `:right` = Steuerbord/E). Nicht im Hafen (angedockt
+  oder in der Schutzzone). Kugeln je Salve und Schaden kommen aus Klasse und Upgrades, die gewählte
+  Sondermunition (`ammo_sel`) wird je Salve um eins verbraucht, sonst Vollkugeln.
+  """
   @spec fire(State.t(), term(), :left | :right) :: {State.t(), list()}
   def fire(state, id, side) when side in [:left, :right] do
     case state.ships[id] do
-      %{alive?: true} = s ->
+      %{alive?: true, docked: nil} = s ->
         key = if side == :left, do: :reload_l, else: :reload_r
 
-        if Map.fetch!(s, key) > 0 do
-          {state, []}
-        else
-          reload = if s.kind == :hunter, do: @hunter_reload_ms, else: @reload_ms
-          state = State.put_ship(state, id, Map.put(s, key, reload))
-          state = broadside(state, s, side, 3, 0.22)
-          {state, [{:fire, id, side, s.x, s.y}]}
+        cond do
+          Map.fetch!(s, key) > 0 -> {state, []}
+          Ports.safe?(state.seed, s.x, s.y) -> {state, []}
+          true -> shoot(state, s, side, key)
         end
 
       _ ->
@@ -50,8 +54,42 @@ defmodule Osp.Combat do
     end
   end
 
+  defp shoot(state, s, side, key) do
+    reload = if s.kind == :hunter, do: @hunter_reload_ms, else: @reload_ms
+    {ammo, s} = take_ammo(s)
+    s = Map.put(s, key, reload)
+    state = State.put_ship(state, s.id, s)
+    {cannons, dmg_mult} = weapon(s)
+    dmg = dmg_mult * ammo_damage(ammo)
+    spacing = min(0.22, 0.75 / max(cannons - 1, 1))
+    state = broadside(state, s, side, cannons, spacing, dmg, ammo)
+    {state, [{:fire, s.id, side, s.x, s.y}]}
+  end
+
+  # Kugeln je Salve und Schadensfaktor: Spieler nach Klasse/Upgrades, NPCs fest
+  defp weapon(%{kind: :player} = s) do
+    st = Ships.stats(s)
+    {st.cannons, st.dmg_mult}
+  end
+
+  defp weapon(_npc), do: {3, 1.0}
+
+  defp take_ammo(%{ammo_sel: sel} = s) when sel in [:chain, :fire] do
+    have = Map.get(s.ammo, sel, 0)
+
+    if have > 0,
+      do: {sel, %{s | ammo: Map.put(s.ammo, sel, have - 1)}},
+      else: {:ball, s}
+  end
+
+  defp take_ammo(s), do: {:ball, s}
+
+  defp ammo_damage(:chain), do: 0.5
+  defp ammo_damage(:fire), do: 0.6
+  defp ammo_damage(:ball), do: 1.0
+
   # `n` Kugeln seitlich vom Rumpf, entlang des Rumpfs verteilt
-  defp broadside(state, s, side, n, spacing) do
+  defp broadside(state, s, side, n, spacing, dmg, ammo) do
     angle = s.heading + if(side == :right, do: :math.pi() / 2, else: -:math.pi() / 2)
     {px, py} = {:math.cos(angle), :math.sin(angle)}
     {hx, hy} = {:math.cos(s.heading), :math.sin(s.heading)}
@@ -66,8 +104,9 @@ defmodule Osp.Combat do
         vx: px * @ball_speed + hx * s.speed * 0.8,
         vy: py * @ball_speed + hy * s.speed * 0.8,
         ttl: @ball_ttl,
-        dmg: 1.0,
+        dmg: dmg,
         r: @ball_r,
+        ammo: ammo,
         owner_kind: s.kind
       })
     end)
@@ -87,11 +126,12 @@ defmodule Osp.Combat do
   @spec step(State.t(), non_neg_integer()) :: {State.t(), list()}
   def step(state, ms) do
     state = reload(state, ms)
+    {state, e0} = burn(state)
     {state, e1} = move_balls(state, ms / 1000, ms)
     {state, e2} = loot_pickups(state)
     state = %{state | loot: Enum.filter(state.loot, &(state.time - &1.born < @loot_ttl_ms))}
     {state, e3} = respawns(state)
-    {state, e1 ++ e2 ++ e3}
+    {state, e0 ++ e1 ++ e2 ++ e3}
   end
 
   defp reload(state, ms) do
@@ -117,6 +157,9 @@ defmodule Osp.Combat do
           Terrain.land?(st.seed, ball.x, ball.y) ->
             {keep, st, [{:splash, ball.x, ball.y} | ev]}
 
+          Ports.safe?(st.seed, ball.x, ball.y) ->
+            {keep, st, ev}
+
           true ->
             case hit_ship(st, ball) do
               nil ->
@@ -124,6 +167,7 @@ defmodule Osp.Combat do
 
               victim ->
                 {st, more} = hurt(st, victim, ball.dmg, ball.owner, ball.x, ball.y)
+                st = if more == [], do: st, else: ammo_effect(st, victim, ball)
                 {keep, st, more ++ ev}
             end
         end
@@ -134,7 +178,7 @@ defmodule Osp.Combat do
 
   defp hit_ship(state, ball) do
     Enum.find_value(state.ships, fn {id, s} ->
-      r = Osp.Sailing.ship_radius() + ball.r
+      r = s.radius + ball.r
 
       if s.alive? and id != ball.owner and s.invuln_until <= state.time and
            (ball.owner_kind == :player or s.kind == :player) and
@@ -149,7 +193,8 @@ defmodule Osp.Combat do
   def hurt(state, victim_id, amount, by, x, y) do
     s = state.ships[victim_id]
 
-    if s == nil or not s.alive? or s.invuln_until > state.time do
+    if s == nil or not s.alive? or s.invuln_until > state.time or
+         Ports.safe?(state.seed, s.x, s.y) do
       {state, []}
     else
       lost = min(amount, s.hp)
@@ -171,6 +216,54 @@ defmodule Osp.Combat do
         {state, events}
       end
     end
+  end
+
+  # Wirkung der Sondermunition auf ein getroffenes (überlebendes) Schiff
+  defp ammo_effect(state, victim, %{ammo: :chain}) do
+    case state.ships[victim] do
+      nil -> state
+      s -> State.put_ship(state, victim, %{s | slow_until: state.time + @slow_ms})
+    end
+  end
+
+  defp ammo_effect(state, victim, %{ammo: :fire, owner: owner}) do
+    case state.ships[victim] do
+      %{burn_until: until} = s when until <= state.time ->
+        State.put_ship(state, victim, %{
+          s
+          | burn_until: state.time + @burn_ms,
+            burn_next: state.time + @burn_tick_ms,
+            burn_by: owner
+        })
+
+      _ ->
+        state
+    end
+  end
+
+  defp ammo_effect(state, _victim, _ball), do: state
+
+  # Brennende Schiffe: jede Sekunde 1 Schaden, bis die Zeit um ist (nicht im Hafen)
+  defp burn(state) do
+    Enum.reduce(Map.keys(state.ships), {state, []}, fn id, {st, ev} ->
+      s = st.ships[id]
+
+      cond do
+        s == nil or s.burn_until <= st.time ->
+          {st, ev}
+
+        Ports.safe?(st.seed, s.x, s.y) ->
+          {State.put_ship(st, id, %{s | burn_until: 0}), ev}
+
+        st.time >= s.burn_next ->
+          st = State.put_ship(st, id, %{s | burn_next: s.burn_next + @burn_tick_ms})
+          {st, more} = hurt(st, id, 1.0, s.burn_by, s.x, s.y)
+          {st, ev ++ more}
+
+        true ->
+          {st, ev}
+      end
+    end)
   end
 
   defp kill(state, id) do

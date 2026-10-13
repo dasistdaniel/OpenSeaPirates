@@ -67,6 +67,37 @@ defmodule Osp.WebTest do
       assert replies < 300
     end
 
+    test "Hafen-Nachrichten: Andocken, Kaufen und Bank werden angenommen, Unsinn ignoriert", %{
+      state: state
+    } do
+      {:push, _, state} = send_json(state, %{t: "join", token: "abcdefgh1234", name: "A"})
+
+      for msg <- [
+            %{t: "dock"},
+            %{t: "undock"},
+            %{t: "ammo", kind: "chain"},
+            %{t: "ammo", kind: "kaboom"},
+            %{t: "buy", what: "class", id: "galeone"},
+            %{t: "buy", what: "class", id: "nichtda"},
+            %{t: "buy", what: "upgrade", id: "hull"},
+            %{t: "buy", what: "ammo", id: "fire"},
+            %{t: "buy", what: "repair"},
+            %{t: "buy", what: "zauberei", id: "x"},
+            %{t: "bank", op: "deposit", amount: 50},
+            %{t: "bank", op: "withdraw", amount: "all"},
+            %{t: "bank", op: "deposit", amount: -3},
+            %{t: "bank", op: "deposit", amount: "viel"}
+          ] do
+        assert {:ok, ^state} = send_json(state, msg)
+      end
+
+      # Hafen-Ansicht wird als JSON-Text weitergereicht
+      assert {:push, {:text, json}, _} =
+               Socket.handle_info({:osp_shop, %{t: "shop", open: false}}, state)
+
+      assert %{"t" => "shop", "open" => false} = Jason.decode!(json)
+    end
+
     test "Schnappschuss wird als JSON-Text weitergereicht", %{state: state} do
       snap = %{t: "snap", time: 1, w: 0.0, wi: 5, you: "a", ships: []}
       assert {:push, {:text, json}, _} = Socket.handle_info({:osp_snap, snap}, state)

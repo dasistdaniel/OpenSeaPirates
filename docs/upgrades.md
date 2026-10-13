@@ -68,7 +68,9 @@ Im Hafen kaufen, begrenzt mitführen, thematisch: **Reparaturset**, **Pulver** (
 4. **Counterplay:** Kettenkugel gegen Schnelle, Panzerung gegen Kartätsche, Fernrohr gegen Überfälle.
 5. **Reihenfolge:** erst wenige, spürbare Entscheidungen; Tiefe (Crew, Handel, Ruf) später.
 
-## Vorschlag für die erste Ausbaustufe (M4)
+## Vorschlag für die erste Ausbaustufe (M4) – umgesetzt
 Drei Klassen (Schaluppe, Brigg, Fregatte) · drei Upgrade-Slots (Kanonen, Rumpf, Segel; je 3 Stufen) ·
 zwei Sondermunitionen (Kettenkugel, Brandgeschoss) · Reparatur im Hafen · Gold-Verlust beim Tod.
 Danach: Crew und Offiziere, Fernrohr/Karten, Handel, Ruf, Kosmetik.
+
+**Umgesetzt in M4:** fünf Klassen (Schaluppe 0, Klipper 350, Brigg 600, Fregatte 1400, Galeone 2400 Gold; Inzahlungnahme 50 %), drei Upgrade-Slots mit je drei Stufen (Kanonen 150/350/700, Rumpf 120/300/600, Segel 150/350/700), Kettenkugel (40 Gold je 10) und Brandgeschoss (60 Gold je 10), Reparatur 4 Gold je HP, Bank. Preise sind Startwerte zum Balancen.
