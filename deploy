@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Produktion auf dem Server (Docker Compose, ein Container, ein Port; Reverse Proxy macht der Betreiber).
+#   ./deploy          Quellen synchronisieren, Image bauen, Container (neu) starten, auf "healthy" warten
+#   ./deploy logs     Container-Log folgen
+#   ./deploy stop     Container stoppen und entfernen
+# Die .env liegt nur auf dem Server; beim ersten Lauf wird sie mit Standardwerten angelegt (siehe .env.example).
+set -euo pipefail
+HOST=daniel@192.168.178.20
+DIR=/home/daniel/osp-prod
+cd "$(dirname "$0")"
+
+case "${1:-}" in
+  logs) exec ssh $HOST "cd $DIR && docker compose logs -f --tail 100 osp" ;;
+  stop) exec ssh $HOST "cd $DIR && docker compose down" ;;
+esac
+
+echo "→ Quellen synchronisieren"
+ssh $HOST "mkdir -p $DIR"
+tar c --exclude=./deps --exclude=./_build --exclude=./node_modules --exclude=./.git --exclude=./.env . | ssh $HOST "tar x -C $DIR"
+
+echo "→ .env prüfen"
+ssh $HOST "cd $DIR && if [ ! -f .env ]; then cp .env.example .env; echo '   .env neu angelegt (Standardwerte)'; else echo '   .env vorhanden'; fi"
+
+echo "→ Image bauen und starten"
+ssh $HOST "cd $DIR && docker compose up -d --build"
+
+echo "→ Warte auf Health-Check"
+for i in $(seq 1 45); do
+  state=$(ssh $HOST "docker inspect -f '{{.State.Health.Status}}' osp 2>/dev/null || echo none")
+  if [ "$state" = healthy ]; then
+    port=$(ssh $HOST "grep '^HOST_PORT=' $DIR/.env | cut -d= -f2")
+    echo "✔ läuft: Port ${port:-4200} auf dem Server (Proxy muss WebSocket-Upgrades auf /ws weiterreichen)"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "✘ nicht healthy nach 90 s – letzte Logs:" >&2
+ssh $HOST "cd $DIR && docker compose logs --tail 40 osp" >&2
+exit 1

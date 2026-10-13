@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Sea Pirates</title>
+    <link rel="stylesheet" href="/css/osp.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <canvas id="minimap" width="168" height="168" title="Minikarte"></canvas>
+
+    <div id="hud" hidden>
+      <div id="hud-pos"></div>
+    </div>
+
+    <div id="status" hidden></div>
+
+    <div id="join">
+      <form id="join-form" autocomplete="off">
+        <p class="kicker">Offene See</p>
+        <h1>Open Sea Pirates</h1>
+        <p class="lead">Segle durch die unendliche Welt, finde Gefechte, werde reich.</p>
+        <label for="name">Name des Kapitäns</label>
+        <input id="name" name="name" maxlength="20" placeholder="Pirat" />
+        <button type="submit" id="join-button">Segel setzen</button>
+        <p class="keys">
+          <kbd>W</kbd> <kbd>A</kbd> <kbd>D</kbd> fahren · Pfeiltasten gehen auch
+        </p>
+      </form>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>

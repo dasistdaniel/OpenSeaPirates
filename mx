@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Quellen auf den Server synchronisieren und mix im Elixir-Container dort ausführen.
+#   ./mx test | format | precommit | run ...   einmaliger mix-Lauf
+#   ./mx serve                                 Dev-Server dauerhaft im Hintergrund (Port 4001)
+#   ./mx logs [n] | ./mx stop                  Server-Log folgen / Server stoppen
+set -euo pipefail
+HOST=daniel@192.168.178.20
+DIR=/home/daniel/osp
+IMG=osp-dev
+cd "$(dirname "$0")"
+
+case "${1:-}" in
+  logs) exec ssh $HOST "docker logs --tail ${2:-80} -f osp-web" ;;
+  stop) exec ssh $HOST "docker rm -f osp-web" ;;
+  test|precommit) export MIX_ENV=test ;;
+esac
+
+ssh $HOST "mkdir -p /home/daniel/.mix-osp"
+ssh $HOST "docker image inspect $IMG >/dev/null 2>&1" || { ssh $HOST "mkdir -p $DIR"; cat Dockerfile.dev | ssh $HOST "docker build -t $IMG -"; }
+ssh $HOST "rm -rf $DIR/lib $DIR/test $DIR/priv $DIR/config $DIR/scripts"
+tar c --exclude=./deps --exclude=./_build --exclude=./node_modules --exclude=./.git . | ssh $HOST "tar x -C $DIR"
+
+RUN="docker run -u \$(id -u):\$(id -g) -e HOME=/tmp -e MIX_HOME=/mix -e HEX_HOME=/mix/hex -e MIX_ENV=${MIX_ENV:-dev} -v /home/daniel/.mix-osp:/mix -v $DIR:/app -w /app"
+SETUP="mix local.hex --force -q; mix local.rebar --force -q; mix deps.get"
+
+if [ "${1:-}" = serve ]; then
+  ssh $HOST "docker rm -f osp-web >/dev/null 2>&1 || true; $RUN -p 4001:4000 -d --name osp-web --restart unless-stopped $IMG sh -c '$SETUP; mix run --no-halt'"
+  echo "Dev-Server startet (erster Start dauert: Deps). Log: ./mx logs   URL: http://192.168.178.20:4001"
+  exit 0
+fi
+
+status=0
+ssh $HOST "$RUN --rm $IMG sh -c '$SETUP; mix $*'" || status=$?
+
+# mix.lock entsteht auf dem Remote (deps.get); format/precommit schreiben außerdem Quelldateien
+ssh $HOST "tar c -C $DIR mix.lock" | tar x
+case "${1:-}" in format|precommit)
+  ssh $HOST "tar c -C $DIR lib test config mix.exs scripts" | tar x ;;
+esac
+exit $status

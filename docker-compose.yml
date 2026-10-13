@@ -1,0 +1,14 @@
+# Produktion: ein Container, ein Port. TLS/Reverse Proxy macht der Betreiber selbst
+# (WebSocket-Upgrade auf /ws durchreichen!). Konfiguration über .env (siehe .env.example).
+services:
+  osp:
+    build: .
+    image: osp:latest
+    container_name: osp
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-4200}:4000"
+    environment:
+      OSP_SEED: ${OSP_SEED:-}
+      OSP_BOTS: ${OSP_BOTS:-3}
+      OSP_ORIGINS: ${OSP_ORIGINS:-}

@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+_build
+deps
+test
+scripts
+docs
+*.md
+Dockerfile*
+docker-compose.yml
+mx
+deploy
