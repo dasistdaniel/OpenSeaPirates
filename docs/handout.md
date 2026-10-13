@@ -60,9 +60,9 @@ Alle Maße in **Welteinheiten (WE)**; 1 WE ≈ Kantenlänge eines Geländefelds.
 | Wert | Startwert | Bemerkung |
 |---|---|---|
 | Schiffsradius (Treffer/Kollision) | 0,36 WE | |
-| Höchsttempo | 1,4 WE/s | langsam genug, damit es kein Racer ist |
-| Beschleunigung | 1,2 WE/s² | |
-| Auslaufen ohne Segel | 0,5 WE/s² | |
+| Höchsttempo (Basis, ohne Wind) | 2,0 WE/s | Wind: 2,8 mit, 1,2 gegen den Wind; M1-Spieltest: 1,4 war zu langsam |
+| Beschleunigung | 1,5 WE/s² | |
+| Auslaufen ohne Segel | 0,7 WE/s² | |
 | Wenden | 1,4 rad/s | bei Stillstand 45 % davon (Ruderwirkung braucht Fahrt) |
 | Boost-Powerup | Höchsttempo ×1,9 für 2,5 s | |
 | Wind | 6 Richtungen, dreht alle 30 s um 60° (oder stufenlos) | |

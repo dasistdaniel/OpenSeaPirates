@@ -13,9 +13,9 @@ defmodule Osp.Sailing do
 
   # Startwerte, siehe docs/handout.md §4
   @ship_r 0.36
-  @max_speed 1.4
-  @accel 1.2
-  @coast 0.5
+  @max_speed 2.0
+  @accel 1.5
+  @coast 0.7
   @turn 1.4
   @wind_effect 0.4
   @bump_speed 0.35
