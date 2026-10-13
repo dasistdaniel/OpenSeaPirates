@@ -29,7 +29,7 @@ und führt `mix` in einem Docker-Container aus.
 
 ## Produktion
 
-Ein Container, ein Port (`HOST_PORT`, Standard 4200), kein Reverse Proxy enthalten – TLS macht der
+Ein Container, ein Port (`HOST_PORT`, Standard 4100), kein Reverse Proxy enthalten – TLS macht der
 Betreiber (WebSocket-Upgrade auf `/ws` durchreichen). Konfiguration über `.env` (siehe `.env.example`).
 
 ```bash

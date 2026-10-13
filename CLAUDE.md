@@ -9,4 +9,4 @@
 - Richtungen: Kurs im Bogenmaß, Bildschirmkoordinaten (y nach unten), rechts = Kurs + 90°;
   Kenney-Schiffe zeigen mit dem Bug nach unten (Sprite-Rotation = Kurs − 90°).
 - Sprache: UI und Kommentare Deutsch, Code-Bezeichner Englisch.
-- Dev-Server `./mx serve` auf Port 4001; Produktion `./deploy` (Port 4200) nur auf ausdrücklichen Wunsch.
+- Dev-Server `./mx serve` auf Port 4001; Produktion `./deploy` (Port 4100) nur auf ausdrücklichen Wunsch.

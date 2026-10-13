@@ -7,7 +7,7 @@ services:
     container_name: osp
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-4200}:4000"
+      - "${HOST_PORT:-4100}:4000"
     environment:
       OSP_SEED: ${OSP_SEED:-}
       OSP_BOTS: ${OSP_BOTS:-0}

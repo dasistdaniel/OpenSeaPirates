@@ -29,7 +29,7 @@ for i in $(seq 1 45); do
   state=$(ssh $HOST "docker inspect -f '{{.State.Health.Status}}' osp 2>/dev/null || echo none")
   if [ "$state" = healthy ]; then
     port=$(ssh $HOST "grep '^HOST_PORT=' $DIR/.env | cut -d= -f2")
-    echo "✔ läuft: Port ${port:-4200} auf dem Server (Proxy muss WebSocket-Upgrades auf /ws weiterreichen)"
+    echo "✔ läuft: Port ${port:-4100} auf dem Server (Proxy muss WebSocket-Upgrades auf /ws weiterreichen)"
     exit 0
   fi
   sleep 2
