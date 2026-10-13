@@ -39,7 +39,7 @@ lib/osp/terrain.ex      Höhenfeld (Seed → Welt), Chunks für den Client
 lib/osp/sailing.ex      Schiffsphysik: Tempo, Wenden, Wind, Kollision (rein)
 lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
 lib/osp/wander.ex       Wander-Bot (rein)
-lib/osp/combat.ex       Breitseiten, Kugeln, Treffer, Tod, Powerups (rein)
+lib/osp/combat.ex       Breitseiten, Kugeln, Treffer, Tod (rein)
 lib/osp/state.ex        Reiner Weltzustand und Zeitschritt
 lib/osp/world.ex        Welt-Prozess (Hülle um State): 20 Hz, Schnappschüsse mit Umkreis (AOI)
 lib/osp/web/            HTTP (Bandit/Plug) und WebSocket-Protokoll

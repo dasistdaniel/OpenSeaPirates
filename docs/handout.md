@@ -27,7 +27,7 @@ Segelschiffe, bei denen **Wind und Ausrichtung der Breitseite** zählen.
 1. **Beitreten** → Schiff spawnt zufällig im Wasser, **1–2 Bildschirmbreiten** von einem anderen Spieler entfernt
    (gibt es keinen, zufälliger Punkt nahe einem Hafen).
 2. **Erkunden/Segeln** → Insel, Riffe, Häfen, Beute-Truhen, NPC-Schiffe, andere Spieler.
-3. **Kämpfen** → Breitseiten, Powerups; Ziel ist Beute und Gold.
+3. **Kämpfen** → Breitseiten; Ziel ist Beute und Gold.
 4. **Gold einsammeln** (Drops vom Wasser) → in einen **Hafen** fahren.
 5. **Aufrüsten** → Rumpf, Kanonen, Segel, Reparatur.
 6. Zurück auf See, stärkere Gegner suchen.
@@ -44,12 +44,11 @@ Ruf (siehe Ausbaustufen).
 | `A` / `D` (`←` / `→`) | Ruder links / rechts |
 | `Q` | Breitseite links (Backbord) |
 | `E` | Breitseite rechts (Steuerbord) |
-| `Leertaste` | eingesammeltes Powerup auslösen |
 | `F` | im Hafen andocken / Shop öffnen |
 | `M` | Ton an/aus |
 | `Tab` (gehalten) | große Karte / Rangliste |
 
-Eingabe wird **als Tastenzustand** an den Server gesendet (nicht als einzelne Ereignisse), Q/E/Space/F als
+Eingabe wird **als Tastenzustand** an den Server gesendet (nicht als einzelne Ereignisse), Q/E/F als
 Ereignisse. Beim Fenster-Blur alle Tasten freigeben.
 
 ---
@@ -64,7 +63,6 @@ Alle Maße in **Welteinheiten (WE)**; 1 WE ≈ Kantenlänge eines Geländefelds.
 | Beschleunigung | 1,5 WE/s² | |
 | Auslaufen ohne Segel | 0,7 WE/s² | |
 | Wenden | 1,4 rad/s | bei Stillstand 45 % davon (Ruderwirkung braucht Fahrt) |
-| Boost-Powerup | Höchsttempo ×1,9 für 2,5 s | |
 | Wind | 6 Richtungen, dreht alle 30 s um 60° (oder stufenlos) | |
 | Windeinfluss auf Höchsttempo | `1 + 0,4·cos(Kurs − Windrichtung)` | Rückenwind +40 %, Gegenwind −40 % |
 | Aufprall Fels/Riff | bremst auf 35 %; ab Tempo > 0,9 WE/s 0,5 Schaden (Pause 0,7 s) | |
@@ -140,16 +138,16 @@ Maximalzahl pro Gebiet begrenzt.
 **Das ist der wichtigste Gameplay-Baustein**, wenn nur wenige Spieler online sind.
 | Typ | Verhalten | Beute |
 |---|---|---|
-| **Händler** | langsam, fährt Routen zwischen Häfen, flieht bei Beschuss, schießt schwach | viel Gold, selten Powerup |
+| **Händler** | langsam, fährt Routen zwischen Häfen, flieht bei Beschuss, schießt schwach | viel Gold, Waren |
 | **Piratenjäger** | patrouilliert, greift Spieler im Radius an (Breitseite, hält Abstand) | mittleres Gold |
-| **Bande** (2–3 Schiffe) | greift gemeinsam an | gutes Gold + Powerup |
+| **Bande** (2–3 Schiffe) | greift gemeinsam an | gutes Gold + Waren |
 | **Boss** (später) | großes Schiff, mehr HP, besondere Waffe | seltene Upgrades |
 
 - NPC-Dichte: pro Spieler-Umgebung (Radius ≈ 40 WE) Ziel ~3–6 NPC-Schiffe, Spawn außerhalb der Sicht,
   Despawn weit weg.
 - KI-Grundlage (bewährt im Prototyp): Gegner so anfahren, dass er **querab** liegt (Breitseitenwinkel ±90°),
-  feuern wenn im Bogen und in Reichweite; Land voraus → abdrehen; Powerups einsammeln/auslösen.
-- **Beute/Loot:** Gold als **schwimmende Münzstapel** (Drops), Truhen, Powerups. Einsammeln durch Überfahren.
+  feuern wenn im Bogen und in Reichweite; Land voraus → abdrehen.
+- **Beute/Loot:** Gold als **schwimmende Münzstapel** (Drops), Truhen, Waren. Einsammeln durch Überfahren.
 
 ---
 
@@ -264,11 +262,11 @@ Zahlen auf 2 Nachkommastellen runden, Ereignisse als kurze Arrays; später binä
 
 ## 13. Tests und Qualität
 - **Reine Simulation** ohne I/O → leicht testbar (ExUnit/Property-Tests): Physik, Wind, Trefferlogik,
-  Q/E-Seitenzuordnung, Nachladen, Powerups, Tod/Respawn, Gold-Verteilung.
+  Q/E-Seitenzuordnung, Nachladen, Tod/Respawn, Gold-Verteilung.
 - **Generator-Tests:** gleicher Seed → gleiche Chunks; Hafen/Spawn befahrbar; Landanteil in Spanne.
 - **AOI-/Spatial-Hash-Tests:** nur nahe Entities im Snapshot.
 - **Lasttest-Skript:** 30–50 simulierte Schiffe/NPCs, Tickzeit messen (**Ziel < 10 ms bei 20 Hz**).
-- **Browser-Smoketest:** Tasten halten (W), tippen (A/D), Q/E/Space, Seitenwechsel, Reconnect.
+- **Browser-Smoketest:** Tasten halten (W), tippen (A/D), Q/E, Seitenwechsel, Reconnect.
 - `mix precommit` (Format, Warnungen als Fehler, Tests) als Pflicht vor jedem Commit.
 
 ---
@@ -276,7 +274,7 @@ Zahlen auf 2 Nachkommastellen runden, Ereignisse als kurze Arrays; später binä
 ## 14. Meilensteine (jede Stufe spielbar)
 1. **M1 – Segeln in der Welt:** Chunk-Generator, Kamera, Wind, Physik, Spawn nahe anderer Spieler, Minimap.
    *Test: "Herumschippern macht Spaß?"*
-2. **M2 – Kampf:** Breitseiten, Treffer, Tod/Respawn, 1–2 Powerups, NPC-Händler als Ziel.
+2. **M2 – Kampf:** Breitseiten, Treffer, Tod/Respawn, NPC-Händler als Ziel (Powerups ausprobiert und verworfen).
 3. **M3 – Leben in der Welt:** NPC-Director, Piratenjäger/Banden, Loot-Drops, Gold im HUD.
 4. **M4 – Häfen + Shop:** Hafen-Generierung, Andocken, Upgrades (nur Sitzung), Schutzzonen.
 5. **M5 – Performance:** Spatial Hash, AOI-Snapshots, Lasttest, Binärprotokoll falls nötig.
@@ -333,7 +331,7 @@ Aus dem laufenden Projekt (Elixir/Phoenix LiveView, Karten- und Arcade-Modus):
 
 ## 18. Auftragsvorlage für den Neubau (kopierbar)
 > Baue "Open Sea Pirates (OSP)": ein Browser-Echtzeitspiel mit einer unendlichen prozeduralen Piratenwelt (Chunks aus
-> Seed, Inseln/Riffe/Häfen), Steuerung W/A/D, Q/E Breitseiten, Leertaste Powerup, Wind-Mechanik
+> Seed, Inseln/Riffe/Häfen), Steuerung W/A/D, Q/E Breitseiten, Wind-Mechanik
 > (Rückenwind +40 %, Gegenwind −40 %). Server-autoritativ in Elixir (World-Prozess mit 20 Hz, Spatial Hash,
 > AOI-Snapshots), Client Canvas/PixiJS mit Kamera, Minimap und Interpolation. NPC-Schiffe (Händler,
 > Piratenjäger), Gold-Drops, Häfen mit Shop und Upgrades (Rumpf, Kanonen, Segel), Schutzzonen. Spawn
