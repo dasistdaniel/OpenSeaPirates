@@ -24,8 +24,8 @@ defmodule Osp.Web.Socket do
 
   @main_world "main"
   @max_name 20
-  @chunk_burst 40
-  @chunk_per_sec 25
+  @chunk_burst 120
+  @chunk_per_sec 60
 
   def main_world, do: @main_world
 

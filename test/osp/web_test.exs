@@ -57,14 +57,14 @@ defmodule Osp.WebTest do
 
       # Burst aufbrauchen: irgendwann kommt keine Antwort mehr
       {_state, replies} =
-        Enum.reduce(1..100, {state, 0}, fn _, {st, n} ->
+        Enum.reduce(1..300, {state, 0}, fn _, {st, n} ->
           case send_json(st, %{t: "chunk", cx: 0, cy: 0}) do
             {:push, _, st} -> {st, n + 1}
             {:ok, st} -> {st, n}
           end
         end)
 
-      assert replies < 100
+      assert replies < 300
     end
 
     test "Schnappschuss wird als JSON-Text weitergereicht", %{state: state} do

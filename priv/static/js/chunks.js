@@ -9,7 +9,7 @@ export class Chunks {
     this.res = 2
     this.land = 0.66
     this.map = new Map() // "cx,cy" -> { bytes, canvas|null }
-    this.pending = new Set()
+    this.pending = new Map() // key -> Anfragezeit; verlorene Anfragen laufen ab und werden wiederholt
     this.builtThisFrame = 0
   }
 
@@ -20,6 +20,11 @@ export class Chunks {
     this.edge = chunk * res + 1
     this.map.clear()
     this.pending.clear()
+  }
+
+  // Anfragen, die nach 2,5 s unbeantwortet sind (z. B. vom Server wegen Mengenbegrenzung verworfen)
+  expirePending(now) {
+    for (const [k, t] of this.pending) if (now - t > 2500) this.pending.delete(k)
   }
 
   key(cx, cy) {
@@ -37,6 +42,8 @@ export class Chunks {
 
   // Alle Chunks im Umkreis `radius` (WE) um (x, y) bereithalten; nahe zuerst, wenige gleichzeitig
   ensureAround(x, y, radius, maxInFlight = 8) {
+    const now = performance.now()
+    this.expirePending(now)
     const s = this.size
     const c0x = Math.floor((x - radius) / s), c1x = Math.floor((x + radius) / s)
     const c0y = Math.floor((y - radius) / s), c1y = Math.floor((y + radius) / s)
@@ -53,7 +60,7 @@ export class Chunks {
       if (this.pending.size >= maxInFlight) break
       const k = this.key(w.cx, w.cy)
       if (!this.map.has(k) && !this.pending.has(k)) {
-        this.pending.add(k)
+        this.pending.set(k, now)
         this.net.send({ t: "chunk", cx: w.cx, cy: w.cy })
       }
     }
