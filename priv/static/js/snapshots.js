@@ -56,9 +56,9 @@ export class Snapshots {
 
     // Kugeln fliegen geradeaus: vom älteren Schnappschuss aus mit ihrer Geschwindigkeit fortschreiben
     const dt = Math.max(0, Math.min((rt - a.at) / 1000, 0.25))
-    const balls = a.balls.map(([id, x, y, vx, vy, k]) => [id, x + vx * dt, y + vy * dt, k])
+    const balls = a.balls.map(([id, x, y, vx, vy]) => [id, x + vx * dt, y + vy * dt])
 
     const last = list[list.length - 1]
-    return { ships, balls, powerups: b.powerups, w: b.w, wi: b.wi, you: b.you, me: last.me, last }
+    return { ships, balls, w: b.w, wi: b.wi, you: b.you, me: last.me, last }
   }
 }

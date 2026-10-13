@@ -96,52 +96,6 @@ defmodule Osp.CombatTest do
     assert s.ships["b"].invuln_until > s.time
   end
 
-  test "Powerup einsammeln (nur eines), Leertaste ohne Powerup tut nichts" do
-    s = scene()
-    a = s.ships["a"]
-
-    s = %{
-      s
-      | powerups: [
-          %{id: 90, type: :repair, x: a.x + 0.1, y: a.y, born: 0},
-          %{id: 91, type: :boost, x: a.x + 0.2, y: a.y, born: 0}
-        ],
-        pu_at: 10_000_000
-    }
-
-    {s, ev} = run(s, 50)
-    assert [{:pickup, "a", _, _, _}] = Enum.filter(ev, &match?({:pickup, _, _, _, _}, &1))
-    assert s.ships["a"].power != nil
-    assert length(s.powerups) == 1
-
-    assert {^s, []} = State.use_power(s, "b")
-  end
-
-  test "Powerups wirken: Reparatur, Schild, Boost, Torpedo, Salve" do
-    base = scene()
-
-    {s, _} = State.use_power(put(base, "a", power: :repair, hp: 5.0), "a")
-    assert s.ships["a"].hp == 10.0 and s.ships["a"].power == nil
-
-    s = put(base, "b", shield_until: 99_999)
-    {s, _} = Combat.hurt(s, "b", 4.0, "a", 0.0, 0.0)
-    assert s.ships["b"].hp == 10.0
-
-    {s, _} = State.use_power(put(base, "a", power: :boost), "a")
-    s = State.set_input(s, "a", %{up?: true})
-    {s, _} = run(s, 1_500)
-    assert s.ships["a"].speed > Osp.Sailing.max_speed() * 1.2
-
-    # Torpedo fliegt geradeaus: b liegt voraus (Ost)
-    t = put(base, "b", x: base.ships["a"].x + 3.0, y: base.ships["a"].y)
-    {t, _} = State.use_power(put(t, "a", power: :torpedo), "a")
-    {t, _} = run(t, 500)
-    assert t.ships["b"].hp == 8.0
-
-    {v, _} = State.use_power(put(base, "a", power: :volley), "a")
-    assert length(v.balls) == 10
-  end
-
   test "Kugeln stoppen an Land (Splash)" do
     seed = @seed
     # Küste entlang y = 0 suchen
@@ -165,8 +119,7 @@ defmodule Osp.CombatTest do
             vy: 0.0,
             ttl: 5_000,
             dmg: 1.0,
-            r: 0.08,
-            kind: 0
+            r: 0.08
           }
         ]
     }
@@ -201,19 +154,6 @@ defmodule Osp.CombatTest do
     assert s.ships["npc-1"].alive?
   end
 
-  test "Powerups tauchen in der Nähe von Spielern auf und verschwinden nach langer Zeit" do
-    {s, _} = run(scene(), 12_000)
-    assert s.powerups != []
-    assert length(s.powerups) <= 3
-
-    a = s.ships["a"]
-
-    assert Enum.all?(
-             s.powerups,
-             &(:math.sqrt((&1.x - a.x) * (&1.x - a.x) + (&1.y - a.y) * (&1.y - a.y)) < 40)
-           )
-  end
-
   test "Schnappschuss: eigener Status, Kugeln und Ereignisse nur aus der Umgebung" do
     {s, _} = State.fire(scene(), "a", :right)
     a = s.ships["a"]
@@ -222,7 +162,7 @@ defmodule Osp.CombatTest do
     snap = State.snapshot_for(s, "a", events)
 
     assert snap.t == "snap" and snap.you == "a"
-    assert %{rl: 0, rr: rr, pw: nil, k: 0, d: 0, rs: 0} = snap.me
+    assert %{rl: 0, rr: rr, k: 0, d: 0, rs: 0} = snap.me
     assert rr > 0
     assert length(snap.balls) == 3
     assert [["fire", "a", "right", _, _]] = snap.ev

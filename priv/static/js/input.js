@@ -1,11 +1,11 @@
 // Tastatur: W/A/D bzw. Pfeile als Zustand (u = Segel, l/r = Ruder, nur bei Änderung gesendet),
-// Q/E = Breitseite links/rechts (gehalten feuert erneut), Leertaste = Powerup, M = Ton.
+// Q/E = Breitseite links/rechts (gehalten feuert erneut), M = Ton.
 
 export class Input {
-  constructor({ onKeys, onFire, onUse, onMute }) {
+  constructor({ onKeys, onFire, onMute }) {
     this.keys = { u: false, l: false, r: false }
     this.firing = { left: false, right: false }
-    this.h = { onKeys, onFire, onUse, onMute }
+    this.h = { onKeys, onFire, onMute }
     this.enabled = false
 
     window.addEventListener("keydown", (e) => this.key(e, true))
@@ -41,12 +41,6 @@ export class Input {
       const side = e.code === "KeyQ" ? "left" : "right"
       this.firing[side] = down
       if (down && !e.repeat) this.h.onFire(side)
-      return
-    }
-
-    if (e.code === "Space") {
-      e.preventDefault() // sonst scrollt die Seite
-      if (down && !e.repeat) this.h.onUse()
       return
     }
 

@@ -45,9 +45,6 @@ defmodule Osp.World do
   @doc "Breitseite: `:left` (Q) oder `:right` (E)."
   def fire(world, id, side), do: GenServer.cast(via(world), {:fire, id, side})
 
-  @doc "Eingesammeltes Powerup auslösen (Leertaste)."
-  def use_power(world, id), do: GenServer.cast(via(world), {:use, id})
-
   @doc "Spieler verlässt die Welt sofort."
   def leave(world, id), do: GenServer.cast(via(world), {:leave, id})
 
@@ -108,11 +105,6 @@ defmodule Osp.World do
 
   def handle_cast({:fire, id, side}, state) do
     {sim, events} = State.fire(state.sim, id, side)
-    {:noreply, %{state | sim: sim, pending: state.pending ++ events}}
-  end
-
-  def handle_cast({:use, id}, state) do
-    {sim, events} = State.use_power(state.sim, id)
     {:noreply, %{state | sim: sim, pending: state.pending ++ events}}
   end
 

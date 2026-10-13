@@ -93,9 +93,12 @@ nach unten → Rotation = Kurs − 90°) mit Tests absichern.
 - Respawn bei Tod an zufälligem sicheren Punkt (siehe §8), **2 s Schonzeit**.
 - Treffer-Feedback: Explosion, Zahlen, Rauch bei niedriger HP; drei Sprite-Zustände (heil / beschädigt / schwer).
 
-### 5.3 Powerups (liegen im Wasser, man trägt eines)
-| Powerup | Wirkung |
-|---|---|
+### 5.3 Powerups – verworfen
+Schwimmende Powerups (Torpedo, Boost, Schild, ...) wurden in M2 ausprobiert und wieder entfernt, weil sie
+thematisch nicht passen. Stattdessen kommen Fähigkeiten über **Ausrüstung und Munition aus dem Shop**
+(siehe docs/upgrades.md), die man mit Gold kauft und fest am Schiff hat.
+
+---|---|
 | Torpedo | schneller Schuss geradeaus, 4 Schaden, Tempo 8 WE/s, Reichweite 8 WE |
 | Mine | wird hinter dem Schiff ausgesetzt, scharf nach 0,8 s, 4 Schaden im Radius 1,3 WE, Lebensdauer 25 s |
 | Boost | 2,5 s schneller |

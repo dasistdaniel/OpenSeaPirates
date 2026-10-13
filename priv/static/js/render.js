@@ -1,18 +1,10 @@
-// Zeichnet die Welt: Wasser, Gelände-Chunks, Schiffe, Kugeln, Powerups, Effekte und das HUD
+// Zeichnet die Welt: Wasser, Gelände-Chunks, Schiffe, Kugeln, Effekte und das HUD
 
 const PI = Math.PI
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
 const SHIP_LEN_WE = 1.5
 const RELOAD_MS = 1800
-
-const POWERS = {
-  torpedo: ["🚀", "Torpedo"],
-  boost: ["💨", "Boost"],
-  shield: ["🛡", "Schild"],
-  repair: ["🔧", "Reparatur"],
-  volley: ["💥", "Salve"],
-}
 
 export class Renderer {
   constructor(canvas, chunks) {
@@ -106,7 +98,6 @@ export class Renderer {
 
     this.drawChunks(cam)
     this.drawWaves(cam, now)
-    this.drawPowerups(state, cam, now)
     this.drawWakes(state, now, cam)
     for (const s of state.ships) if (s !== me && s.a) this.drawShip(s, cam, false, now)
     if (me && me.a) this.drawShip(me, cam, true, now)
@@ -167,35 +158,15 @@ export class Renderer {
     }
   }
 
-  drawPowerups(state, cam, now) {
-    const { ctx, scale } = this
-    for (const [, x, y, type] of state.powerups) {
-      const cx = this.sx(x, cam), cy = this.sy(y, cam)
-      const pulse = 1 + 0.08 * Math.sin(now / 200)
-      ctx.beginPath()
-      ctx.arc(cx, cy, 0.34 * scale * pulse, 0, 2 * PI)
-      ctx.fillStyle = "rgba(15,23,42,0.78)"
-      ctx.fill()
-      ctx.lineWidth = 2
-      ctx.strokeStyle = "#fbbf24"
-      ctx.stroke()
-      ctx.font = Math.round(0.38 * scale) + "px sans-serif"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.fillStyle = "#fff"
-      ctx.fillText((POWERS[type] || ["?"])[0], cx, cy + 1)
-    }
-  }
-
   drawBalls(state, cam) {
     const { ctx, scale } = this
-    for (const [, x, y, k] of state.balls) {
+    for (const [, x, y] of state.balls) {
       ctx.beginPath()
-      ctx.arc(this.sx(x, cam), this.sy(y, cam), (k === 1 ? 0.17 : 0.085) * scale, 0, 2 * PI)
-      ctx.fillStyle = k === 1 ? "#fb923c" : "#0f172a"
+      ctx.arc(this.sx(x, cam), this.sy(y, cam), 0.085 * scale, 0, 2 * PI)
+      ctx.fillStyle = "#0f172a"
       ctx.fill()
       ctx.lineWidth = 1.5
-      ctx.strokeStyle = k === 1 ? "#fde68a" : "#e2e8f0"
+      ctx.strokeStyle = "#e2e8f0"
       ctx.stroke()
     }
   }
@@ -215,23 +186,6 @@ export class Renderer {
     if (im.complete) ctx.drawImage(im, -wid / 2, -len / 2, wid, len)
     else { ctx.fillStyle = "#ccc"; ctx.fillRect(-wid / 2, -len / 2, wid, len) }
     ctx.restore()
-
-    if (s.sh) {
-      ctx.beginPath()
-      ctx.arc(cx, cy, 0.85 * scale, 0, 2 * PI)
-      ctx.strokeStyle = "rgba(125,211,252,0.85)"
-      ctx.lineWidth = 3
-      ctx.stroke()
-    }
-    if (s.bo) {
-      ctx.beginPath()
-      ctx.arc(cx, cy, 0.8 * scale, 0, 2 * PI)
-      ctx.strokeStyle = "rgba(251,191,36,0.8)"
-      ctx.setLineDash([4, 5])
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
 
     // Name und Lebensbalken
     ctx.font = `600 ${Math.round(0.26 * scale)}px sans-serif`
@@ -330,7 +284,7 @@ export class Renderer {
     }
   }
 
-  // Eigenes Schiff: Leben, Nachladen, Powerup, Abschüsse; Meldungen; Versenkt-Banner
+  // Eigenes Schiff: Leben, Nachladen, Abschüsse; Meldungen; Versenkt-Banner
   drawHud(state, me, now) {
     const { ctx, canvas, dpr } = this
     const u = dpr
@@ -367,13 +321,9 @@ export class Renderer {
     reload("Q  links", mine.rl, bx)
     reload("E  rechts", mine.rr, bx + 156 * u)
 
-    const pw = mine.pw ? POWERS[mine.pw] : null
-    ctx.font = `700 ${12 * u}px sans-serif`
-    ctx.fillStyle = pw ? "#fde68a" : "#64748b"
-    ctx.textAlign = "left"
-    ctx.fillText(pw ? `${pw[0]} ${pw[1]}  –  Leertaste` : "Kein Powerup", bx, by + 50 * u)
     ctx.textAlign = "right"
     ctx.fillStyle = "#cbd5e1"
+    ctx.font = `700 ${12 * u}px sans-serif`
     ctx.fillText(`Abschüsse ${mine.k}  ·  Tode ${mine.d}`, bx + 300 * u, by + 50 * u)
 
     // Abschuss-Meldungen oben rechts

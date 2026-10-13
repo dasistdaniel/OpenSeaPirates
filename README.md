@@ -6,8 +6,8 @@ Technik-Entscheidungen: [docs/decisions.md](docs/decisions.md).
 
 **Stand: M2 "Kampf"** (auf M1 "Segeln in der Welt" aufgebaut): unendliche Welt (Chunks aus Seed), Kamera,
 Wind, Schiffsphysik mit Geländekollision, Spawn nahe anderer Schiffe, Minikarte; Breitseiten (Q/E) mit
-Nachladezeit, Treffer, Tod und Wiederauftauchen mit Schonzeit, Powerups (Torpedo, Boost, Schild,
-Reparatur, Salve, Leertaste), NPC-Händler als Ziele.
+Nachladezeit, Treffer, Tod und Wiederauftauchen mit Schonzeit, NPC-Händler als Ziele.
+Powerups wurden bewusst wieder entfernt (passen nicht zum Thema).
 
 ## Entwickeln
 

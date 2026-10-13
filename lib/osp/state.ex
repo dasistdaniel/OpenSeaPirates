@@ -24,12 +24,10 @@ defmodule Osp.State do
             ships: %{},
             targets: %{},
             balls: [],
-            powerups: [],
             wind: 0,
             wind_at: @wind_every_ms,
             rng: nil,
-            next_id: 1,
-            pu_at: 0
+            next_id: 1
 
   @type t :: %__MODULE__{}
 
@@ -69,11 +67,8 @@ defmodule Osp.State do
       alive?: true,
       respawn_at: 0,
       invuln_until: 0,
-      shield_until: 0,
-      boost_until: 0,
       reload_l: 0,
       reload_r: 0,
-      power: nil,
       kills: 0,
       deaths: 0,
       damage: 0.0,
@@ -142,7 +137,6 @@ defmodule Osp.State do
   # --- Eingaben für den Kampf (dünn, damit die Hülle nur State kennt) --------------------
 
   def fire(state, id, side), do: Combat.fire(state, id, side)
-  def use_power(state, id), do: Combat.use_power(state, id)
 
   # --- Zeitschritt --------------------------------------------------------------------
 
@@ -181,7 +175,6 @@ defmodule Osp.State do
 
   defp speed_opts(%{kind: :merchant}, _t), do: [cap_mult: @merchant_speed]
 
-  defp speed_opts(%{boost_until: b}, t) when b > t, do: [cap_mult: 1.9, accel_mult: 2.0]
   defp speed_opts(_s, _t), do: []
 
   defp turn_wind(%{time: t, wind_at: at} = state) when t >= at,
@@ -233,7 +226,7 @@ defmodule Osp.State do
   # --- Schnappschuss -------------------------------------------------------------------
 
   @doc """
-  Sicht für einen Spieler: Schiffe, Kugeln, Powerups und Ereignisse im Umkreis (`aoi/0`) plus
+  Sicht für einen Spieler: Schiffe, Kugeln und Ereignisse im Umkreis (`aoi/0`) plus
   eigener Status. `nil`, wenn es das Schiff nicht gibt.
   """
   @spec snapshot_for(t(), term(), list()) :: map() | nil
@@ -265,8 +258,6 @@ defmodule Osp.State do
                 hp: Float.round(max(s.hp, 0.0), 1),
                 mh: s.max_hp,
                 a: s.alive?,
-                sh: s.shield_until > t,
-                bo: s.boost_until > t,
                 iv: s.invuln_until > t,
                 k: s.kills,
                 m: s.kind == :merchant
@@ -274,16 +265,11 @@ defmodule Osp.State do
             end,
           balls:
             for b <- state.balls, near?.(b.x, b.y) do
-              [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), b.kind]
-            end,
-          powerups:
-            for p <- state.powerups, near?.(p.x, p.y) do
-              [p.id, r2(p.x), r2(p.y), Atom.to_string(p.type)]
+              [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]
             end,
           me: %{
             rl: me.reload_l,
             rr: me.reload_r,
-            pw: me.power && Atom.to_string(me.power),
             k: me.kills,
             d: me.deaths,
             rs: if(me.alive?, do: 0, else: max(me.respawn_at - t, 0))
@@ -296,12 +282,6 @@ defmodule Osp.State do
   # Ereignisse als kurze JSON-Arrays; nur wenn sie im Umkreis liegen
   defp encode({:fire, id, side, x, y}, near?),
     do: if(near?.(x, y), do: ["fire", id, to_string(side), r2(x), r2(y)])
-
-  defp encode({:power, id, type, x, y}, near?),
-    do: if(near?.(x, y), do: ["power", id, to_string(type), r2(x), r2(y)])
-
-  defp encode({:pickup, id, type, x, y}, near?),
-    do: if(near?.(x, y), do: ["pickup", id, to_string(type), r2(x), r2(y)])
 
   defp encode({:respawn, id, x, y}, near?),
     do: if(near?.(x, y), do: ["respawn", id, r2(x), r2(y)])

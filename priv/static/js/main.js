@@ -49,7 +49,6 @@ const chunks = new Chunks(net)
 const input = new Input({
   onKeys: (k) => net.send({ t: "input", u: k.u, l: k.l, r: k.r }),
   onFire: (side) => net.send({ t: "fire", side }),
-  onUse: () => net.send({ t: "use" }),
   onMute: () => sound.toggle(),
 })
 const renderer = new Renderer($("game"), chunks)
@@ -78,10 +77,6 @@ function handleEvent(ev) {
     sound.play("kill", 1)
   } else if (kind === "splash") {
     renderer.effect({ t: "ring", x: ev[1], y: ev[2], life: 400 })
-  } else if (kind === "pickup") {
-    if (ev[1] === myId) sound.play("pickup", 1)
-  } else if (kind === "power") {
-    if (ev[1] === myId) sound.play("power", 1)
   } else if (kind === "respawn") {
     renderer.effect({ t: "ring", x: ev[2], y: ev[3], life: 700 })
   }
