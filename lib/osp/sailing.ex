@@ -34,19 +34,25 @@ defmodule Osp.Sailing do
   @spec wind_angle(0..5) :: float()
   def wind_angle(dir), do: -dir * @pi / 3
 
-  @doc "Ein Zeitschritt `dt` (Sekunden) für ein Schiff."
-  @spec step(ship(), keys(), float(), float(), (number(), number() -> boolean())) :: ship()
-  def step(ship, keys, dt, wind_angle, solid?) do
+  @doc """
+  Ein Zeitschritt `dt` (Sekunden) für ein Schiff. `opts`: `:cap_mult` (Faktor aufs Höchsttempo,
+  z. B. Händler 0,6 oder Boost 1,9) und `:accel_mult` (Faktor auf die Beschleunigung).
+  """
+  @spec step(ship(), keys(), float(), float(), (number(), number() -> boolean()), keyword()) ::
+          ship()
+  def step(ship, keys, dt, wind_angle, solid?, opts \\ []) do
+    cap_mult = Keyword.get(opts, :cap_mult, 1.0)
+    accel = @accel * Keyword.get(opts, :accel_mult, 1.0)
     turn = (if(keys.right?, do: 1, else: 0) - if(keys.left?, do: 1, else: 0)) * 1.0
     grip = 0.45 + 0.55 * min(1.0, ship.speed / @max_speed)
     heading = ship.heading + turn * @turn * grip * dt
 
-    cap = @max_speed * wind_factor(heading, wind_angle)
+    cap = @max_speed * cap_mult * wind_factor(heading, wind_angle)
 
     speed =
       cond do
         keys.up? and ship.speed > cap -> max(ship.speed - 2 * dt, cap)
-        keys.up? -> min(ship.speed + @accel * dt, cap)
+        keys.up? -> min(ship.speed + accel * dt, cap)
         true -> max(ship.speed - if(ship.speed > cap, do: 2, else: @coast) * dt, 0.0)
       end
 

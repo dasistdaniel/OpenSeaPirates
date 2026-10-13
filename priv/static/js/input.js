@@ -1,32 +1,61 @@
-// Tastatur: W/A/D bzw. Pfeile als Zustand (u = Segel, l/r = Ruder). Gesendet wird nur bei Änderung.
+// Tastatur: W/A/D bzw. Pfeile als Zustand (u = Segel, l/r = Ruder, nur bei Änderung gesendet),
+// Q/E = Breitseite links/rechts (gehalten feuert erneut), Leertaste = Powerup, M = Ton.
 
 export class Input {
-  constructor(onChange) {
+  constructor({ onKeys, onFire, onUse, onMute }) {
     this.keys = { u: false, l: false, r: false }
-    this.onChange = onChange
+    this.firing = { left: false, right: false }
+    this.h = { onKeys, onFire, onUse, onMute }
     this.enabled = false
 
     window.addEventListener("keydown", (e) => this.key(e, true))
     window.addEventListener("keyup", (e) => this.key(e, false))
     window.addEventListener("blur", () => this.releaseAll())
+
+    // Gehaltene Breitseitentaste feuert erneut, sobald nachgeladen ist (der Server prüft)
+    setInterval(() => {
+      if (!this.enabled) return
+      if (this.firing.left) this.h.onFire("left")
+      if (this.firing.right) this.h.onFire("right")
+    }, 150)
   }
 
   key(e, down) {
     if (!this.enabled) return
     if (e.ctrlKey || e.metaKey || e.altKey) return
     if (e.target.closest && e.target.closest("input, textarea, select")) return
-    const map = { KeyW: "u", ArrowUp: "u", KeyA: "l", ArrowLeft: "l", KeyD: "r", ArrowRight: "r" }
-    const k = map[e.code]
-    if (!k) return
-    e.preventDefault()
-    if (this.keys[k] !== down) {
-      this.keys[k] = down
-      this.onChange(this.keys)
+
+    const move = { KeyW: "u", ArrowUp: "u", KeyA: "l", ArrowLeft: "l", KeyD: "r", ArrowRight: "r" }
+    const k = move[e.code]
+    if (k) {
+      e.preventDefault()
+      if (this.keys[k] !== down) {
+        this.keys[k] = down
+        this.h.onKeys(this.keys)
+      }
+      return
     }
+
+    if (e.code === "KeyQ" || e.code === "KeyE") {
+      e.preventDefault()
+      const side = e.code === "KeyQ" ? "left" : "right"
+      this.firing[side] = down
+      if (down && !e.repeat) this.h.onFire(side)
+      return
+    }
+
+    if (e.code === "Space") {
+      e.preventDefault() // sonst scrollt die Seite
+      if (down && !e.repeat) this.h.onUse()
+      return
+    }
+
+    if (e.code === "KeyM" && down && !e.repeat) this.h.onMute()
   }
 
   releaseAll() {
     this.keys = { u: false, l: false, r: false }
-    this.onChange(this.keys)
+    this.firing = { left: false, right: false }
+    this.h.onKeys(this.keys)
   }
 }

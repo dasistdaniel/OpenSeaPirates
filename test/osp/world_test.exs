@@ -55,8 +55,8 @@ defmodule Osp.WorldTest do
 
     # p2 weit weg setzen
     :sys.replace_state(GenServer.whereis(World.via(w)), fn s ->
-      far = %{s.ships["p2"] | x: s.ships["p1"].x + 500.0}
-      %{s | ships: Map.put(s.ships, "p2", far)}
+      far = %{s.sim.ships["p2"] | x: s.sim.ships["p1"].x + 500.0}
+      %{s | sim: Osp.State.put_ship(s.sim, "p2", far)}
     end)
 
     flush()
@@ -106,7 +106,7 @@ defmodule Osp.WorldTest do
     for _ <- 1..200, do: assert_receive({:osp_snap, _}, 500)
 
     %{ships: ships, seed: seed} = World.state(w)
-    bots = for {"bot-" <> _, s} <- ships, do: s
+    bots = for {"npc-" <> _, s} <- ships, do: s
     assert length(bots) == 3
     assert Enum.any?(bots, &(&1.speed > 0.3))
     for b <- bots, do: refute(Osp.Terrain.land?(seed, b.x, b.y))
@@ -128,8 +128,8 @@ defmodule Osp.WorldTest do
     start_x = shore - 4.0
 
     :sys.replace_state(GenServer.whereis(World.via(w)), fn s ->
-      ship = %{s.ships["p1"] | x: start_x, y: 0.0, heading: 0.0, speed: 0.0}
-      %{s | ships: Map.put(s.ships, "p1", ship)}
+      ship = %{s.sim.ships["p1"] | x: start_x, y: 0.0, heading: 0.0, speed: 0.0}
+      %{s | sim: Osp.State.put_ship(s.sim, "p1", ship)}
     end)
 
     World.input(w, "p1", %{up?: true, left?: false, right?: false})

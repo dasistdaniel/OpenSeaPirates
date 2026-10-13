@@ -4,8 +4,10 @@ Offene, prozedurale Piraten-Welt im Browser: Echtzeit-Segeln (WASD, Wind), spät
 Gold, Häfen und Shops. Konzept, Regeln und Roadmap: [docs/handout.md](docs/handout.md),
 Technik-Entscheidungen: [docs/decisions.md](docs/decisions.md).
 
-**Stand: M1 "Segeln in der Welt"** – unendliche Welt (Chunks aus Seed), Kamera, Wind, Schiffsphysik mit
-Geländekollision, Spawn nahe anderer Schiffe, Minikarte, drei Wander-Bots als Gesellschaft.
+**Stand: M2 "Kampf"** (auf M1 "Segeln in der Welt" aufgebaut): unendliche Welt (Chunks aus Seed), Kamera,
+Wind, Schiffsphysik mit Geländekollision, Spawn nahe anderer Schiffe, Minikarte; Breitseiten (Q/E) mit
+Nachladezeit, Treffer, Tod und Wiederauftauchen mit Schonzeit, Powerups (Torpedo, Boost, Schild,
+Reparatur, Salve, Leertaste), NPC-Händler als Ziele.
 
 ## Entwickeln
 
@@ -37,7 +39,9 @@ lib/osp/terrain.ex      Höhenfeld (Seed → Welt), Chunks für den Client
 lib/osp/sailing.ex      Schiffsphysik: Tempo, Wenden, Wind, Kollision (rein)
 lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
 lib/osp/wander.ex       Wander-Bot (rein)
-lib/osp/world.ex        Welt-Prozess: 20 Hz, Schnappschüsse mit Umkreis (AOI)
+lib/osp/combat.ex       Breitseiten, Kugeln, Treffer, Tod, Powerups (rein)
+lib/osp/state.ex        Reiner Weltzustand und Zeitschritt
+lib/osp/world.ex        Welt-Prozess (Hülle um State): 20 Hz, Schnappschüsse mit Umkreis (AOI)
 lib/osp/web/            HTTP (Bandit/Plug) und WebSocket-Protokoll
 priv/static/            Client (ES-Module, Canvas 2D, kein Build-Schritt)
 ```

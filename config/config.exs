@@ -4,7 +4,7 @@ import Config
 config :osp,
   start_server: true,
   start_main_world: true,
-  # Anzahl Wander-Bots in der Hauptwelt (Leben in der Welt, bis es echte NPCs gibt)
+  # Anzahl NPC-Händler in der Hauptwelt (Ziele und Leben auf See)
   bots: 3,
   seed: nil,
   allowed_origins: nil,

@@ -1,11 +1,18 @@
-// Zeichnet die Welt: Wasser, Gelände-Chunks, Schiffe, Kielwasser, Wind-Kompass
+// Zeichnet die Welt: Wasser, Gelände-Chunks, Schiffe, Kugeln, Powerups, Effekte und das HUD
 
 const PI = Math.PI
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
 const SHIP_LEN_WE = 1.5
+const RELOAD_MS = 1800
 
-export const viewWidthWE = VIEW_WIDTH_WE
+const POWERS = {
+  torpedo: ["🚀", "Torpedo"],
+  boost: ["💨", "Boost"],
+  shield: ["🛡", "Schild"],
+  repair: ["🔧", "Reparatur"],
+  volley: ["💥", "Salve"],
+}
 
 export class Renderer {
   constructor(canvas, chunks) {
@@ -13,15 +20,23 @@ export class Renderer {
     this.ctx = canvas.getContext("2d")
     this.chunks = chunks
     this.scale = 40
-    this.parts = [] // Kielwasser-Ringe
+    this.parts = [] // Effekte: Kielwasser, Explosionen, Zahlen, Splash
+    this.feed = [] // Abschuss-Meldungen
     this.lastWake = new Map()
 
     this.sprites = {}
     for (const c of SPRITE_COLORS) {
-      const im = new Image()
-      im.src = `/images/ship_${c}_0.png`
-      this.sprites[c] = im
+      for (let n = 0; n < 3; n++) {
+        const im = new Image()
+        im.src = `/images/ship_${c}_${n}.png`
+        this.sprites[`${c}_${n}`] = im
+      }
     }
+    this.expl = [1, 2, 3].map((n) => {
+      const im = new Image()
+      im.src = `/images/explosion${n}.png`
+      return im
+    })
 
     this.waves = this.makeWavePattern()
     window.addEventListener("resize", () => this.resize())
@@ -56,12 +71,23 @@ export class Renderer {
     return this.ctx.createPattern(c, "repeat")
   }
 
+  // --- Effekte von außen ------------------------------------------------------------
+
+  effect(p) {
+    this.parts.push({ born: performance.now(), ...p })
+  }
+
+  killFeed(text, mine) {
+    this.feed.push({ text, mine, until: performance.now() + 5000 })
+    if (this.feed.length > 5) this.feed.shift()
+  }
+
   // Weltpunkt → Bildschirm (Geräte-Pixel)
   sx(x, cam) { return (x - cam.x) * this.scale + this.canvas.width / 2 }
   sy(y, cam) { return (y - cam.y) * this.scale + this.canvas.height / 2 }
 
   draw(state, now) {
-    const { ctx, canvas, scale } = this
+    const { ctx, canvas } = this
     const W = canvas.width, H = canvas.height
     this.chunks.builtThisFrame = 0
 
@@ -75,15 +101,19 @@ export class Renderer {
     }
 
     const me = state.ships.find((s) => s.i === state.you)
-    const cam = me ? { x: me.x, y: me.y } : { x: 0, y: 0 }
+    const cam = me ? { x: me.x, y: me.y } : this.lastCam || { x: 0, y: 0 }
+    this.lastCam = cam
 
     this.drawChunks(cam)
     this.drawWaves(cam, now)
+    this.drawPowerups(state, cam, now)
     this.drawWakes(state, now, cam)
-    for (const s of state.ships) if (s !== me) this.drawShip(s, cam, false)
-    if (me) this.drawShip(me, cam, true)
+    for (const s of state.ships) if (s !== me && s.a) this.drawShip(s, cam, false, now)
+    if (me && me.a) this.drawShip(me, cam, true, now)
+    this.drawBalls(state, cam)
+    this.drawParts(now, cam)
     this.drawCompass(state, me)
-    return cam
+    this.drawHud(state, me, now)
   }
 
   drawChunks(cam) {
@@ -123,11 +153,11 @@ export class Renderer {
   }
 
   drawWakes(state, now, cam) {
-    const { ctx, scale } = this
     for (const s of state.ships) {
-      if (s.v > 0.4 && now - (this.lastWake.get(s.i) || 0) > 90) {
+      if (s.a && s.v > 0.4 && now - (this.lastWake.get(s.i) || 0) > 90) {
         this.lastWake.set(s.i, now)
         this.parts.push({
+          t: "wake",
           x: s.x - Math.cos(s.h) * 0.45,
           y: s.y - Math.sin(s.h) * 0.45,
           born: now,
@@ -135,38 +165,124 @@ export class Renderer {
         })
       }
     }
-    this.parts = this.parts.filter((p) => now - p.born < p.life)
-    for (const p of this.parts) {
-      const age = (now - p.born) / p.life
+  }
+
+  drawPowerups(state, cam, now) {
+    const { ctx, scale } = this
+    for (const [, x, y, type] of state.powerups) {
+      const cx = this.sx(x, cam), cy = this.sy(y, cam)
+      const pulse = 1 + 0.08 * Math.sin(now / 200)
       ctx.beginPath()
-      ctx.arc(this.sx(p.x, cam), this.sy(p.y, cam), (0.08 + age * 0.3) * scale, 0, 2 * PI)
-      ctx.strokeStyle = `rgba(255,255,255,${0.45 * (1 - age)})`
+      ctx.arc(cx, cy, 0.34 * scale * pulse, 0, 2 * PI)
+      ctx.fillStyle = "rgba(15,23,42,0.78)"
+      ctx.fill()
       ctx.lineWidth = 2
+      ctx.strokeStyle = "#fbbf24"
+      ctx.stroke()
+      ctx.font = Math.round(0.38 * scale) + "px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillStyle = "#fff"
+      ctx.fillText((POWERS[type] || ["?"])[0], cx, cy + 1)
+    }
+  }
+
+  drawBalls(state, cam) {
+    const { ctx, scale } = this
+    for (const [, x, y, k] of state.balls) {
+      ctx.beginPath()
+      ctx.arc(this.sx(x, cam), this.sy(y, cam), (k === 1 ? 0.17 : 0.085) * scale, 0, 2 * PI)
+      ctx.fillStyle = k === 1 ? "#fb923c" : "#0f172a"
+      ctx.fill()
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = k === 1 ? "#fde68a" : "#e2e8f0"
       ctx.stroke()
     }
   }
 
-  drawShip(s, cam, mine) {
+  drawShip(s, cam, mine, now) {
     const { ctx, scale } = this
     const cx = this.sx(s.x, cam), cy = this.sy(s.y, cam)
-    const im = this.sprites[SPRITE_COLORS[s.c % SPRITE_COLORS.length]]
+    const ratio = Math.max(s.hp / s.mh, 0)
+    const state = ratio > 0.66 ? 0 : ratio > 0.33 ? 1 : 2
+    const im = this.sprites[`${SPRITE_COLORS[s.c % SPRITE_COLORS.length]}_${state}`]
     const len = SHIP_LEN_WE * scale, wid = (len * 66) / 113
 
     ctx.save()
     ctx.translate(cx, cy)
+    if (s.iv && Math.floor(now / 120) % 2) ctx.globalAlpha = 0.45
     ctx.rotate(s.h - PI / 2) // Sprite: Bug zeigt nach unten (+90°)
     if (im.complete) ctx.drawImage(im, -wid / 2, -len / 2, wid, len)
     else { ctx.fillStyle = "#ccc"; ctx.fillRect(-wid / 2, -len / 2, wid, len) }
     ctx.restore()
 
+    if (s.sh) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, 0.85 * scale, 0, 2 * PI)
+      ctx.strokeStyle = "rgba(125,211,252,0.85)"
+      ctx.lineWidth = 3
+      ctx.stroke()
+    }
+    if (s.bo) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, 0.8 * scale, 0, 2 * PI)
+      ctx.strokeStyle = "rgba(251,191,36,0.8)"
+      ctx.setLineDash([4, 5])
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
+    // Name und Lebensbalken
     ctx.font = `600 ${Math.round(0.26 * scale)}px sans-serif`
     ctx.textAlign = "center"
     ctx.textBaseline = "bottom"
-    ctx.fillStyle = mine ? "#fde68a" : "rgba(255,255,255,0.9)"
+    ctx.fillStyle = mine ? "#fde68a" : s.m ? "#cbd5e1" : "rgba(255,255,255,0.92)"
     ctx.strokeStyle = "rgba(0,0,0,0.55)"
     ctx.lineWidth = 3
-    ctx.strokeText(s.n, cx, cy - 0.75 * scale)
-    ctx.fillText(s.n, cx, cy - 0.75 * scale)
+    ctx.strokeText(s.n, cx, cy - 0.95 * scale)
+    ctx.fillText(s.n, cx, cy - 0.95 * scale)
+    const bw = 1.0 * scale, bh = 0.1 * scale
+    ctx.fillStyle = "rgba(0,0,0,0.5)"
+    ctx.fillRect(cx - bw / 2, cy - 0.9 * scale, bw, bh)
+    ctx.fillStyle = ratio > 0.5 ? "#4ade80" : ratio > 0.25 ? "#fbbf24" : "#f87171"
+    ctx.fillRect(cx - bw / 2, cy - 0.9 * scale, bw * ratio, bh)
+  }
+
+  drawParts(now, cam) {
+    const { ctx, scale } = this
+    this.parts = this.parts.filter((p) => now - p.born < p.life)
+    for (const p of this.parts) {
+      const age = (now - p.born) / p.life
+      const cx = this.sx(p.x, cam), cy = this.sy(p.y, cam)
+      if (p.t === "wake") {
+        ctx.beginPath()
+        ctx.arc(cx, cy, (0.08 + age * 0.3) * scale, 0, 2 * PI)
+        ctx.strokeStyle = `rgba(255,255,255,${0.45 * (1 - age)})`
+        ctx.lineWidth = 2
+        ctx.stroke()
+      } else if (p.t === "expl") {
+        const im = this.expl[Math.min(Math.floor(age * 2.99), 2)]
+        const size = p.size * scale * (0.6 + 0.6 * age)
+        ctx.globalAlpha = 1 - age * age
+        if (im.complete) ctx.drawImage(im, cx - size / 2, cy - size / 2, size, size)
+        ctx.globalAlpha = 1
+      } else if (p.t === "ring") {
+        ctx.beginPath()
+        ctx.arc(cx, cy, (0.1 + age * 0.3) * scale, 0, 2 * PI)
+        ctx.strokeStyle = `rgba(255,255,255,${0.6 * (1 - age)})`
+        ctx.lineWidth = 2
+        ctx.stroke()
+      } else if (p.t === "text") {
+        ctx.font = `800 ${Math.round(0.34 * scale)}px sans-serif`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.globalAlpha = 1 - age
+        ctx.fillStyle = p.color
+        ctx.fillText(p.text, cx, cy - age * 0.9 * scale)
+        ctx.globalAlpha = 1
+      }
+    }
   }
 
   // Wind-Kompass oben Mitte: Pfeil = Richtung, in die der Wind weht; Zahl = Tempobonus für den eigenen Kurs
@@ -211,6 +327,73 @@ export class Renderer {
       ctx.font = `800 ${13 * u}px sans-serif`
       ctx.fillStyle = bonus > 5 ? "#86efac" : bonus < -5 ? "#fca5a5" : "#cbd5e1"
       ctx.fillText((bonus > 0 ? "+" : "") + bonus + " %", cx, cy + 30 * u)
+    }
+  }
+
+  // Eigenes Schiff: Leben, Nachladen, Powerup, Abschüsse; Meldungen; Versenkt-Banner
+  drawHud(state, me, now) {
+    const { ctx, canvas, dpr } = this
+    const u = dpr
+    const mine = state.me
+    if (!me || !mine) return
+
+    const W = canvas.width, H = canvas.height
+    const bx = W / 2 - 150 * u, by = H - 70 * u
+    ctx.fillStyle = "rgba(8,20,34,0.72)"
+    ctx.fillRect(bx - 8 * u, by - 12 * u, 316 * u, 76 * u)
+
+    const ratio = Math.max(me.hp / me.mh, 0)
+    ctx.fillStyle = "rgba(255,255,255,0.12)"
+    ctx.fillRect(bx, by, 300 * u, 14 * u)
+    ctx.fillStyle = ratio > 0.5 ? "#4ade80" : ratio > 0.25 ? "#fbbf24" : "#f87171"
+    ctx.fillRect(bx, by, 300 * u * ratio, 14 * u)
+    ctx.font = `700 ${11 * u}px sans-serif`
+    ctx.textAlign = "left"
+    ctx.textBaseline = "middle"
+    ctx.fillStyle = "#0f172a"
+    ctx.fillText(Math.ceil(me.hp) + " / " + me.mh + " HP", bx + 6 * u, by + 7.5 * u)
+
+    const reload = (label, ms, x) => {
+      const f = 1 - Math.min(ms / RELOAD_MS, 1)
+      ctx.fillStyle = "rgba(255,255,255,0.12)"
+      ctx.fillRect(x, by + 24 * u, 144 * u, 12 * u)
+      ctx.fillStyle = f >= 1 ? "#fbbf24" : "#64748b"
+      ctx.fillRect(x, by + 24 * u, 144 * u * f, 12 * u)
+      ctx.fillStyle = "#f8fafc"
+      ctx.font = `700 ${10 * u}px sans-serif`
+      ctx.textAlign = "left"
+      ctx.fillText(label, x + 5 * u, by + 30.5 * u)
+    }
+    reload("Q  links", mine.rl, bx)
+    reload("E  rechts", mine.rr, bx + 156 * u)
+
+    const pw = mine.pw ? POWERS[mine.pw] : null
+    ctx.font = `700 ${12 * u}px sans-serif`
+    ctx.fillStyle = pw ? "#fde68a" : "#64748b"
+    ctx.textAlign = "left"
+    ctx.fillText(pw ? `${pw[0]} ${pw[1]}  –  Leertaste` : "Kein Powerup", bx, by + 50 * u)
+    ctx.textAlign = "right"
+    ctx.fillStyle = "#cbd5e1"
+    ctx.fillText(`Abschüsse ${mine.k}  ·  Tode ${mine.d}`, bx + 300 * u, by + 50 * u)
+
+    // Abschuss-Meldungen oben rechts
+    this.feed = this.feed.filter((f) => f.until > now)
+    ctx.font = `700 ${14 * u}px sans-serif`
+    ctx.textAlign = "right"
+    this.feed.forEach((f, n) => {
+      ctx.fillStyle = f.mine ? "#fde68a" : "#cbd5e1"
+      ctx.fillText(f.text, W - 16 * u, 24 * u + n * 22 * u)
+    })
+
+    if (!me.a) {
+      ctx.textAlign = "center"
+      ctx.fillStyle = "#fca5a5"
+      ctx.font = `800 ${34 * u}px sans-serif`
+      ctx.fillText("Versenkt", W / 2, H / 2 - 10 * u)
+      ctx.font = `600 ${16 * u}px sans-serif`
+      ctx.fillStyle = "#e2e8f0"
+      const left = Math.max(Math.ceil((mine.rs - (now - state.last.at)) / 1000), 0)
+      ctx.fillText(`Neustart in ${left} s`, W / 2, H / 2 + 24 * u)
     }
   }
 

@@ -11,3 +11,5 @@
 | Umkreis (AOI) | 45 WE um das eigene Schiff | Minikarte reicht 42 WE; echte Räumlichkeit (Spatial Hash) folgt in M5. |
 | Welten | Eine Hauptwelt `main`; Welt-Registry ist schon pro ID | Welt pro Raum später ohne Umbau möglich. |
 | Dev-Betrieb | `./mx` (SSH + Docker) | Kein Elixir lokal. Dev-Server auf Port 4001 (4000 belegt das Schwesterprojekt Pirating). |
+| Welt-Aufbau | `Osp.State` (rein) + `Osp.World` (Prozess-Hülle) | Spiellogik ohne Prozess testbar (41 Tests); Combat/Sailing/Spawn sind reine Module. |
+| Gold/Mine | Noch nicht (M3); Powerups: Torpedo, Boost, Schild, Reparatur, Salve | Mine folgt mit Loot/NPCs. |

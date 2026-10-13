@@ -49,10 +49,10 @@ export class Minimap {
     for (const s of ships) {
       const x = (s.x - me.x + RANGE) * k, y = (s.y - me.y + RANGE) * k
       if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) continue
-      if (s.i === me.i) continue
+      if (s.i === me.i || !s.a) continue
       ctx.beginPath()
       ctx.arc(x, y, 3, 0, 2 * Math.PI)
-      ctx.fillStyle = SPRITE_COLORS[s.c % SPRITE_COLORS.length]
+      ctx.fillStyle = s.m ? "#cbd5e1" : SPRITE_COLORS[s.c % SPRITE_COLORS.length]
       ctx.fill()
       ctx.strokeStyle = "rgba(0,0,0,0.6)"
       ctx.lineWidth = 1

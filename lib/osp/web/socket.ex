@@ -7,6 +7,8 @@ defmodule Osp.Web.Socket do
     * `{"t":"join","token":"...","name":"..."}` – beitreten (genau einmal, zuerst)
     * `{"t":"input","u":bool,"l":bool,"r":bool}` – Tastenzustand
     * `{"t":"chunk","cx":int,"cy":int}` – Geländeblock anfordern
+    * `{"t":"fire","side":"left"|"right"}` – Breitseite (Q = links, E = rechts)
+    * `{"t":"use"}` – eingesammeltes Powerup auslösen (Leertaste)
 
   **Server → Client:**
 
@@ -75,6 +77,17 @@ defmodule Osp.Web.Socket do
       right?: msg["r"] == true
     })
 
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "fire", "side" => side}, %{id: id} = state)
+       when id != nil and side in ["left", "right"] do
+    World.fire(state.world, id, if(side == "left", do: :left, else: :right))
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "use"}, %{id: id} = state) when id != nil do
+    World.use_power(state.world, id)
     {:ok, state}
   end
 
