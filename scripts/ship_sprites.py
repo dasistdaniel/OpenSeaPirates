@@ -3,7 +3,8 @@ Erzeugt die Schiffs-Sprites aller Klassen und Farben aus den Einzelteilen des Ke
 
     python scripts/ship_sprites.py <pfad/zur/pirate-pack.zip> priv/static/images/ships
 
-Schreibt `<klasse>_<farbe>.png` (5 Klassen × 6 Farben). Bug zeigt nach unten (wie die fertigen
+Schreibt `<klasse>_<farbe>.png` (5 Klassen × 6 Farben) sowie `_reefed` (Segel kleiner) und
+`_studding` (Segel größer) für die Segelstufen; nur die Segel ändern sich, der Rumpf bleibt gleich. Bug zeigt nach unten (wie die fertigen
 Schiffe des Packs); der Bildmittelpunkt liegt auf der Rumpfmitte, damit das Schiff darum dreht.
 Maßstab im Spiel: 1,5 WE entsprechen 113 Pixeln.
 """
@@ -29,7 +30,11 @@ CLASSES = {
 }
 
 
-def build(get, spec, sail_n):
+# Segelgröße je Stufe (Faktor auf die Segelbilder)
+SAIL_SCALE = {"": 1.0, "_reefed": 0.75, "_studding": 1.2}
+
+
+def build(get, spec, sail_n, sail_k=1.0):
     w, h = 110, 172
     ship = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     mid = w / 2
@@ -47,7 +52,7 @@ def build(get, spec, sail_n):
         put(ship, get("cannon.png", 0.55, 0.55, flip=True), mid - hull.width / 2 + 1, y)
 
     for (sx, sy, y) in spec["sails"]:
-        put(ship, get(f"sailLarge ({sail_n}).png", sx, sy), mid, hy0 + y)
+        put(ship, get(f"sailLarge ({sail_n}).png", sx * sail_k, sy * sail_k), mid, hy0 + y)
 
     if spec.get("nest"):
         put(ship, get("nest.png"), mid, hy0 + spec["nest"])
@@ -68,8 +73,9 @@ def main(zip_path, out_dir):
     out.mkdir(parents=True, exist_ok=True)
     for name, spec in CLASSES.items():
         for color in COLOR_ORDER:
-            build(get, spec, COLORS[color]).save(out / f"{name}_{color}.png")
-    print(f"{len(CLASSES) * len(COLOR_ORDER)} Sprites in {out}")
+            for suffix, k in SAIL_SCALE.items():
+                build(get, spec, COLORS[color], k).save(out / f"{name}_{color}{suffix}.png")
+    print(f"{len(CLASSES) * len(COLOR_ORDER) * len(SAIL_SCALE)} Sprites in {out}")
 
 
 if __name__ == "__main__":

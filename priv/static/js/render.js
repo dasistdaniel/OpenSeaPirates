@@ -304,8 +304,18 @@ export class Renderer {
     }
   }
 
-  sprite(cl, color) {
-    const key = `${cl}_${SPRITE_COLORS[color % SPRITE_COLORS.length]}`
+  // Bild je Klasse, Farbe und Segelstufe (gerafft/Beisegel: nur die Segel sind kleiner/größer);
+  // solange die Variante lädt, dient das Bild mit vollen Segeln
+  sprite(cl, color, sail) {
+    const base = `${cl}_${SPRITE_COLORS[color % SPRITE_COLORS.length]}`
+    if (sail === "reefed" || sail === "studding") {
+      const v = this.spriteFile(`${base}_${sail}`)
+      if (v.complete && v.naturalWidth) return v
+    }
+    return this.spriteFile(base)
+  }
+
+  spriteFile(key) {
     let im = this.sprites[key]
     if (!im) {
       im = new Image()
@@ -319,7 +329,7 @@ export class Renderer {
     const { ctx, scale } = this
     const cx = this.sx(s.x, cam), cy = this.sy(s.y, cam)
     const ratio = Math.max(s.hp / s.mh, 0)
-    const im = this.sprite(s.cl, s.c)
+    const im = this.sprite(s.cl, s.c, s.sa)
 
     ctx.save()
     ctx.translate(cx, cy)
@@ -333,21 +343,6 @@ export class Renderer {
     if (im.complete && im.naturalWidth) {
       const w = im.naturalWidth * WE_PER_PX * scale, h = im.naturalHeight * WE_PER_PX * scale
       ctx.drawImage(im, -w / 2, -h / 2, w, h)
-      // Beisegel: zwei Zusatzsegel links und rechts am Rumpf; Rumpf bleibt unverändert
-      if (s.sa === "studding") {
-        ctx.fillStyle = "rgba(255,250,235,0.92)"
-        ctx.strokeStyle = "rgba(120,100,70,0.8)"
-        ctx.lineWidth = Math.max(1, 0.025 * scale)
-        for (const side of [-1, 1]) {
-          ctx.beginPath()
-          ctx.moveTo(side * w * 0.42, -h * 0.12)
-          ctx.lineTo(side * w * 0.95, -h * 0.02)
-          ctx.lineTo(side * w * 0.42, h * 0.12)
-          ctx.closePath()
-          ctx.fill()
-          ctx.stroke()
-        }
-      }
     } else {
       ctx.fillStyle = "#ccc"
       ctx.fillRect(-0.3 * scale, -0.7 * scale, 0.6 * scale, 1.4 * scale)
