@@ -134,6 +134,8 @@ function handleEvent(ev) {
     splinters(x, y, 12, 5200)
     renderer.killFeed(`${killer ? nm(killer) : "Riff"} ⚓ ${nm(victim)}`, killer === myId || victim === myId)
     sound.play("kill", 1)
+  } else if (kind === "rake") {
+    renderer.effect({ t: "text", x: ev[1], y: ev[2] - 0.4, life: 1000, text: "Längsfeuer!", color: "#fb923c" })
   } else if (kind === "splash") {
     renderer.effect({ t: "ring", x: ev[1], y: ev[2], life: 400 })
     sound.play("splash", 0.5)

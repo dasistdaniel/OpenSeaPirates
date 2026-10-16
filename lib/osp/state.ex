@@ -145,6 +145,7 @@ defmodule Osp.State do
       damage: 0.0,
       last_hit_by: nil,
       flee: nil,
+      run: nil,
       stuck: 0
     }
   end
@@ -415,22 +416,24 @@ defmodule Osp.State do
       case acc.ships[id] do
         %{alive?: true, kind: :hunter} = ship ->
           ship = unstick(ship, solid?)
-          enemy = nearest_player(acc, ship, @hunter_aggro)
 
-          {keys, fires, target, rng} =
-            Hunter.think(ship, enemy, acc.targets[id], solid?, acc.rng, nil)
+          case nearest_player(acc, ship, @hunter_aggro) do
+            nil ->
+              {keys, [], target, rng} =
+                Hunter.think(ship, nil, acc.targets[id], solid?, acc.rng, nil)
 
-          acc = %{
-            acc
-            | ships: Map.put(acc.ships, id, %{ship | input: keys}),
-              targets: Map.put(acc.targets, id, target),
-              rng: rng
-          }
+              acc = %{
+                acc
+                | ships: Map.put(acc.ships, id, %{ship | input: keys, run: nil}),
+                  targets: Map.put(acc.targets, id, target),
+                  rng: rng
+              }
 
-          Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
-            {a, more} = Combat.fire(a, id, side)
-            {a, e ++ more}
-          end)
+              {acc, ev}
+
+            enemy ->
+              fight(acc, ev, id, ship, enemy, solid?)
+          end
 
         %{alive?: true, kind: :merchant} = ship ->
           think_merchant(acc, ev, id, unstick(ship, solid?), solid?)
@@ -472,31 +475,29 @@ defmodule Osp.State do
           @merchant_fight_range
 
     if close? and ship.hp / ship.max_hp > @merchant_flee_hp do
-      {keys, fires, target, rng} =
-        Hunter.think(ship, attacker, acc.targets[id], solid?, acc.rng, nil)
-
-      acc = %{
-        acc
-        | ships: Map.put(acc.ships, id, %{ship | input: keys}),
-          targets: Map.put(acc.targets, id, target),
-          rng: rng
-      }
-
-      Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
-        {a, more} = Combat.fire(a, id, side)
-        {a, e ++ more}
-      end)
+      fight(acc, ev, id, ship, attacker, solid?)
     else
       flee = attacker && {attacker.x, attacker.y}
       {keys, target, rng} = Wander.think(ship, acc.targets[id], solid?, acc.rng, flee)
 
       {%{
          acc
-         | ships: Map.put(acc.ships, id, %{ship | input: keys}),
+         | ships: Map.put(acc.ships, id, %{ship | input: keys, run: nil}),
            targets: Map.put(acc.targets, id, target),
            rng: rng
        }, ev}
     end
+  end
+
+  # Kampf eines NPCs gegen `enemy`: Angriffslauf (`Osp.Hunter.attack/4`), danach feuern
+  defp fight(acc, ev, id, ship, enemy, solid?) do
+    {keys, fires, run} = Hunter.attack(ship, enemy, solid?, acc.time)
+    acc = %{acc | ships: Map.put(acc.ships, id, %{ship | input: keys, run: run})}
+
+    Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
+      {a, more} = Combat.fire(a, id, side)
+      {a, e ++ more}
+    end)
   end
 
   # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit)
@@ -650,6 +651,8 @@ defmodule Osp.State do
 
   defp event_entry({:hit, v, by, amount, x, y}),
     do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:rake, x, y}), do: {x, y, ["rake", r2(x), r2(y)]}
 
   defp event_entry({:kill, killer, v, x, y}),
     do: {x, y, ["kill", public_id(killer), public_id(v), r2(x), r2(y)]}

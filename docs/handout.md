@@ -79,7 +79,7 @@ nach unten → Rotation = Kurs − 90°) mit Tests absichern.
 
 ## 5. Waffen und Kampf
 ### 5.1 Breitseiten
-- Je Seite eigener Nachladetimer (**1,8 s**), Taste `Q`/`E`.
+- Je Seite eigener Nachladetimer (**3,0 s**, Kugelschaden 1,5; Treffer von vorn/hinten zählen doppelt), Taste `Q`/`E`.
 - Eine Salve = **3 Kugeln** nebeneinander am Rumpf, senkrecht zum Kurs; Kugel übernimmt 80 % der
   Schiffsgeschwindigkeit in Fahrtrichtung.
 - Kugel: Tempo 6 WE/s, Lebensdauer 0,75 s (**Reichweite ≈ 4,5 WE**), Schaden 1, Trefferradius 0,08 WE.

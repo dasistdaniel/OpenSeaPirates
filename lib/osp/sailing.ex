@@ -19,6 +19,9 @@ defmodule Osp.Sailing do
   @turn 1.4
   @wind_effect 0.4
   @bump_speed 0.35
+  # Ruderlegen kostet Fahrt: bei voll eingeschlagenem Ruder gehen pro Sekunde 120 % des Tempos
+  # verloren (Beschleunigung gleicht einen Teil aus). Dauerkreisen macht langsam, Vorbeifahrten lohnen.
+  @turn_drag 1.2
 
   def ship_radius, do: @ship_r
   def max_speed, do: @max_speed
@@ -58,6 +61,8 @@ defmodule Osp.Sailing do
         keys.up? -> min(ship.speed + accel * dt, cap)
         true -> max(ship.speed - if(ship.speed > cap, do: 2, else: @coast) * dt, 0.0)
       end
+
+    speed = speed * (1.0 - min(@turn_drag * abs(turn) * dt, 0.5))
 
     nx = ship.x + :math.cos(heading) * speed * dt
     ny = ship.y + :math.sin(heading) * speed * dt

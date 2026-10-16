@@ -12,12 +12,16 @@ defmodule Osp.Combat do
 
   alias Osp.{Ports, Ships, State, Terrain}
 
-  @reload_ms 1_800
+  # Lange Ladezeit, dafür kräftige Salven: jede Breitseite zählt, Dauerkreisen lohnt nicht
+  @reload_ms 3_000
   @ball_speed 6.0
   @ball_ttl 750
   @ball_r 0.08
-  @hunter_reload_ms 3_200
-  @merchant_reload_ms 2_600
+  @hunter_reload_ms 4_000
+  @merchant_reload_ms 3_200
+  # Längsfeuer: Treffer von vorn oder hinten (Kugel fliegt entlang der Schiffsachse) zählen doppelt
+  @rake_cos 0.7
+  @rake_mult 2.0
   @respawn_ms 3_000
   @invuln_ms 2_000
   @loot_r 0.75
@@ -93,9 +97,9 @@ defmodule Osp.Combat do
 
   defp take_ammo(s), do: {:ball, s}
 
-  defp ammo_damage(:chain), do: 0.5
-  defp ammo_damage(:fire), do: 0.6
-  defp ammo_damage(:ball), do: 1.0
+  defp ammo_damage(:chain), do: 0.75
+  defp ammo_damage(:fire), do: 0.9
+  defp ammo_damage(:ball), do: 1.5
 
   # `n` Kugeln seitlich vom Rumpf, entlang des Rumpfs verteilt
   defp broadside(state, s, side, n, spacing, dmg, ammo) do
@@ -175,14 +179,26 @@ defmodule Osp.Combat do
                 {[ball | keep], st, ev}
 
               victim ->
-                {st, more} = hurt(st, victim, ball.dmg, ball.owner, ball.x, ball.y)
+                rake? = raking?(st.ships[victim], ball)
+                dmg = if rake?, do: ball.dmg * @rake_mult, else: ball.dmg
+                {st, more} = hurt(st, victim, dmg, ball.owner, ball.x, ball.y)
                 st = if more == [], do: st, else: ammo_effect(st, victim, ball)
+                more = if rake? and more != [], do: more ++ [{:rake, ball.x, ball.y}], else: more
                 {keep, st, more ++ ev}
             end
         end
       end)
 
     {%{state | balls: Enum.reverse(keep)}, Enum.reverse(events)}
+  end
+
+  # Flog die Kugel (fast) entlang der Schiffsachse, traf sie Bug oder Heck?
+  defp raking?(ship, ball) do
+    speed = :math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
+
+    speed > 0 and
+      abs((ball.vx * :math.cos(ship.heading) + ball.vy * :math.sin(ship.heading)) / speed) >=
+        @rake_cos
   end
 
   defp hit_ship(state, ball) do

@@ -276,14 +276,14 @@ defmodule Osp.HarborTest do
     st = duel(class: :fregatte, upgrades: %{cannons: 3, hull: 0, sails: 0})
     {st, _} = Combat.fire(st, "a", :right)
     assert length(st.balls) == 5
-    assert Enum.all?(st.balls, &(&1.dmg == 2.0))
+    assert Enum.all?(st.balls, &(&1.dmg == 3.0))
   end
 
   test "Kettenkugel: halber Schaden, verlangsamt das Ziel; Vorrat wird verbraucht" do
     st = duel(ammo: %{chain: 2}, ammo_sel: :chain)
     {st, _} = Combat.fire(st, "a", :right)
     assert st.ships["a"].ammo.chain == 1
-    assert Enum.all?(st.balls, &(&1.ammo == :chain and &1.dmg == 0.5))
+    assert Enum.all?(st.balls, &(&1.ammo == :chain and &1.dmg == 0.75))
 
     st = run(st, 700)
     assert st.ships["b"].hp < 12.0
@@ -314,7 +314,7 @@ defmodule Osp.HarborTest do
   test "Ohne Vorrat fällt die Sondermunition auf Vollkugeln zurück" do
     st = duel(ammo_sel: :fire)
     {st, _} = Combat.fire(st, "a", :right)
-    assert Enum.all?(st.balls, &(&1.ammo == :ball and &1.dmg == 1.0))
+    assert Enum.all?(st.balls, &(&1.ammo == :ball and &1.dmg == 1.5))
   end
 
   test "Munitionswahl nur für bekannte Arten" do

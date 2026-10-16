@@ -6,7 +6,7 @@ import { SPRITE_COLORS as PLAYER_COLORS } from "./minimap.js"
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
 const WE_PER_PX = 1.5 / 113 // Maßstab der Schiffsbilder
-const RELOAD_MS = 1800
+const RELOAD_MS = 3000
 
 // Deterministischer Zufall 0..1 aus zwei ganzen Zahlen (für Wellenkämme)
 function hash2(a, b) {
