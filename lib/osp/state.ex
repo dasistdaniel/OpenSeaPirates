@@ -4,7 +4,8 @@ defmodule Osp.State do
   `Osp.World` ist nur die Hülle (Takt, Verbindungen, Versand); alles Spielerische steht hier und in
   `Osp.Combat`, `Osp.Sailing`, `Osp.Spawn`, `Osp.Wander` – dadurch ohne Prozess testbar.
 
-  Schiffe haben `kind`: `:player`, `:merchant` (Händler: langsam, flieht, trägt viel Gold) oder
+  Schiffe haben `kind`: `:player`, `:merchant` (Händler: langsam, schwer bewaffnet, wehrt sich
+  gegen Angreifer, flieht erst bei schwerem Schaden, trägt viel Gold) oder
   `:hunter` (Piratenjäger: greift Spieler an). NPCs verschwinden beim Untergang und lassen ihr
   Kopfgeld (`bounty`) als Beute fallen; `Osp.Director` hält die Welt um Spieler herum bevölkert.
   """
@@ -15,11 +16,14 @@ defmodule Osp.State do
   @aoi 45.0
   @wind_every_ms 30_000
   @grace_ms 10_000
-  @merchant_hp 6
+  @merchant_hp 14
   @hunter_hp 10
   @merchant_speed 0.6
   @hunter_speed 0.9
   @hunter_aggro 28.0
+  # Händler kämpfen nur gegen den, der sie angreift, solange er nah ist und der Rumpf hält
+  @merchant_fight_range 14.0
+  @merchant_flee_hp 0.4
   @max_name 20
 
   defstruct seed: 0,
@@ -73,7 +77,7 @@ defmodule Osp.State do
     {class, upgrades} =
       case kind do
         :player -> {Ships.fresh().class, Ships.fresh().upgrades}
-        :merchant -> {:klipper, Ships.fresh().upgrades}
+        :merchant -> {:galeone, Ships.fresh().upgrades}
         :hunter -> {:brigg, Ships.fresh().upgrades}
       end
 
@@ -220,7 +224,7 @@ defmodule Osp.State do
     id = "npc-#{state.next_id}"
     {r, rng} = :rand.uniform_s(state.rng)
 
-    {lo, hi} = if kind == :merchant, do: {30, 80}, else: {40, 100}
+    {lo, hi} = if kind == :merchant, do: {50, 120}, else: {40, 100}
     bounty = lo + round(r * (hi - lo)) + bonus
 
     ship = %{new_ship(id, name, kind, x, y, heading) | bounty: bounty}
@@ -399,29 +403,59 @@ defmodule Osp.State do
             {a, e ++ more}
           end)
 
-        %{alive?: true} = ship ->
-          flee =
-            with %{from: from, until: until} <- ship.flee,
-                 true <- until > acc.time,
-                 %{alive?: true} = attacker <- acc.ships[from] do
-              {attacker.x, attacker.y}
-            else
-              _ -> nil
-            end
-
-          {keys, target, rng} = Wander.think(ship, acc.targets[id], solid?, acc.rng, flee)
-
-          {%{
-             acc
-             | ships: Map.put(acc.ships, id, %{ship | input: keys}),
-               targets: Map.put(acc.targets, id, target),
-               rng: rng
-           }, ev}
+        %{alive?: true, kind: :merchant} = ship ->
+          think_merchant(acc, ev, id, ship, solid?)
 
         _ ->
           {acc, ev}
       end
     end)
+  end
+
+  # Händler: friedlich, bis jemand sie trifft. Dann stellen sie den Angreifer querab und feuern
+  # (wie ein Jäger, nur mit mehr Kanonen); bei schwerem Schaden oder wenn der Angreifer weit weg ist,
+  # drehen sie ab und fliehen.
+  defp think_merchant(acc, ev, id, ship, solid?) do
+    attacker =
+      with %{from: from, until: until} <- ship.flee,
+           true <- until > acc.time,
+           %{alive?: true} = a <- acc.ships[from] do
+        a
+      else
+        _ -> nil
+      end
+
+    close? =
+      attacker != nil and
+        :math.sqrt(:math.pow(attacker.x - ship.x, 2) + :math.pow(attacker.y - ship.y, 2)) <=
+          @merchant_fight_range
+
+    if close? and ship.hp / ship.max_hp > @merchant_flee_hp do
+      {keys, fires, target, rng} =
+        Hunter.think(ship, attacker, acc.targets[id], solid?, acc.rng, nil)
+
+      acc = %{
+        acc
+        | ships: Map.put(acc.ships, id, %{ship | input: keys}),
+          targets: Map.put(acc.targets, id, target),
+          rng: rng
+      }
+
+      Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
+        {a, more} = Combat.fire(a, id, side)
+        {a, e ++ more}
+      end)
+    else
+      flee = attacker && {attacker.x, attacker.y}
+      {keys, target, rng} = Wander.think(ship, acc.targets[id], solid?, acc.rng, flee)
+
+      {%{
+         acc
+         | ships: Map.put(acc.ships, id, %{ship | input: keys}),
+           targets: Map.put(acc.targets, id, target),
+           rng: rng
+       }, ev}
+    end
   end
 
   # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit)

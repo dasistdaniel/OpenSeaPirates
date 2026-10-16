@@ -17,6 +17,7 @@ defmodule Osp.Combat do
   @ball_ttl 750
   @ball_r 0.08
   @hunter_reload_ms 3_200
+  @merchant_reload_ms 2_600
   @respawn_ms 3_000
   @invuln_ms 2_000
   @loot_r 0.75
@@ -55,7 +56,13 @@ defmodule Osp.Combat do
   end
 
   defp shoot(state, s, side, key) do
-    reload = if s.kind == :hunter, do: @hunter_reload_ms, else: @reload_ms
+    reload =
+      case s.kind do
+        :hunter -> @hunter_reload_ms
+        :merchant -> @merchant_reload_ms
+        _ -> @reload_ms
+      end
+
     {ammo, s} = take_ammo(s)
     s = Map.put(s, key, reload)
     state = State.put_ship(state, s.id, s)
@@ -72,6 +79,8 @@ defmodule Osp.Combat do
     {st.cannons, st.dmg_mult}
   end
 
+  # Händler sind gut bewaffnet (4 Kanonen je Seite), Jäger leichter (3)
+  defp weapon(%{kind: :merchant}), do: {4, 1.0}
   defp weapon(_npc), do: {3, 1.0}
 
   defp take_ammo(%{ammo_sel: sel} = s) when sel in [:chain, :fire] do

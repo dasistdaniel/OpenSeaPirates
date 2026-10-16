@@ -32,6 +32,13 @@ defmodule Osp.CombatTest do
     |> place.("b", bx + Keyword.get(opts, :dx, 0.0), by + Keyword.get(opts, :dy, 2.0), 0.0)
   end
 
+  defp run_ev(state, ms) do
+    Enum.reduce(1..div(ms, 25), {state, []}, fn _, {s, ev} ->
+      {s, more} = State.tick(s, 25)
+      {s, ev ++ more}
+    end)
+  end
+
   defp run(state, ms) do
     Enum.reduce(1..div(ms, 25), {state, []}, fn _, {s, ev} ->
       {s, more} = State.tick(s, 25)
@@ -129,7 +136,7 @@ defmodule Osp.CombatTest do
     assert Enum.any?(ev, &match?({:splash, _, _}, &1))
   end
 
-  test "NPC-Händler: langsamer, flieht nach Beschuss, verschwindet beim Untergang und lässt Kopfgeld fallen" do
+  test "NPC-Händler: langsamer, wehrt sich nach Beschuss, verschwindet beim Untergang und lässt Kopfgeld fallen" do
     {bx, by} = open_water()
     s = State.new(@seed, 1)
     s = State.join(s, "a", "Anna")
@@ -140,7 +147,7 @@ defmodule Osp.CombatTest do
       |> State.update_ship("a", &%{&1 | x: bx, y: by, invuln_until: 0})
 
     bounty = s.ships["npc-1"].bounty
-    assert bounty >= 30 and bounty <= 80
+    assert bounty >= 50 and bounty <= 120
 
     {s, _} = Combat.hurt(s, "npc-1", 1.0, "a", bx, by)
     assert %{from: "a"} = s.ships["npc-1"].flee
@@ -213,6 +220,57 @@ defmodule Osp.CombatTest do
     s = State.update_ship(s, "npc-1", &%{&1 | reload_r: 0})
     {s, _} = run(s, 800)
     assert s.ships["a"].hp < 12.0
+  end
+
+  # Händler und ein Spieler 3 WE südlich (steuerbord) auf offenem Wasser; Spieler steht still
+  defp merchant_scene do
+    {bx, by} = open_water()
+    s = State.join(State.new(@seed, 1), "a", "Anna")
+
+    s
+    |> State.update_ship("npc-1", &%{&1 | x: bx, y: by, heading: 0.0})
+    |> State.update_ship("a", &%{&1 | x: bx, y: by + 3.0, heading: 0.0, invuln_until: 0})
+  end
+
+  test "Händler sind gut bewaffnet (4 Kanonen je Seite) und robust" do
+    s = merchant_scene()
+    assert s.ships["npc-1"].max_hp == 14
+    {s, _} = Combat.fire(s, "npc-1", :right)
+    assert length(s.balls) == 4
+  end
+
+  test "Friedliche Händler schießen nicht auf vorbeifahrende Spieler" do
+    s = merchant_scene()
+    {s, ev} = run_ev(s, 12_000)
+    refute Enum.any?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+    assert s.ships["a"].hp == 12.0
+  end
+
+  test "Angegriffene Händler wehren sich und treffen" do
+    s = merchant_scene()
+    {s, _} = Combat.hurt(s, "npc-1", 1.0, "a", 0.0, 0.0)
+    {s, ev} = run_ev(s, 15_000)
+
+    assert Enum.any?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+    assert s.ships["a"].hp < 12.0 or not s.ships["a"].alive?
+  end
+
+  test "Schwer beschädigte Händler fliehen statt zu kämpfen" do
+    s = merchant_scene()
+    s = State.update_ship(s, "npc-1", &%{&1 | hp: 4.0})
+    {s, _} = Combat.hurt(s, "npc-1", 0.5, "a", 0.0, 0.0)
+    assert s.ships["npc-1"].hp / s.ships["npc-1"].max_hp < 0.4
+
+    {_s, ev} = run_ev(s, 8_000)
+    refute Enum.any?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+  end
+
+  test "Händler lassen vom Kampf ab, wenn der Angreifer weit weg ist" do
+    s = merchant_scene()
+    {s, _} = Combat.hurt(s, "npc-1", 1.0, "a", 0.0, 0.0)
+    s = State.update_ship(s, "a", &%{&1 | x: &1.x + 60.0})
+    {_s, ev} = run_ev(s, 6_000)
+    refute Enum.any?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
   end
 
   test "Piratenjäger greifen Spieler an und schießen" do
