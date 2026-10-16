@@ -20,12 +20,12 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 | # | Aufgabe | Aufwand | Notiz |
 |---|---|---|---|
 | B1 | ✅ gemessen und Engpass behoben, siehe `docs/performance.md`: **Leistung messen (M5):** Lasttest mit 30–50 Bots, Tickzeit; Spatial Hash für Kugeln/Treffer; Schnappschuss-Größe | M–L | Heute prüft jede Kugel jedes Schiff (O(n²)). Für Freundesrunde (< 10) egal, für mehr nötig. |
-| B2 | **Rangliste und "Wer ist online":** Abschüsse, Gold-Rekord | M | Setzt A1 voraus. |
+| B2 | ✅ erledigt (Online-Liste mit Abschüssen/Gold/Richtung, Bildrand- und Minikarten-Pfeile): **Rangliste und "Wer ist online":** Abschüsse, Gold-Rekord | M | Eine dauerhafte Bestenliste (Rekorde über Sitzungen) fehlt noch. |
 | B3 | ✅ Händler wehren sich (Entern offen): **Händler schießen zurück / Entern:** Händler sind zu leichte Beute | M | `hunter.ex` als Vorlage. |
 | B4 | **Mine** (vom M2-Plan) und weitere Sondermunition | S–M | `combat.ex`. |
-| B5 | **Sichtbarer Schaden:** Rauch bei wenig HP, Wrackteile beim Untergang | S–M | Kenney-Effekte vorhanden. |
-| B6 | **Reconnect-Komfort:** Hinweis "Verbindung verloren", Schiff 10 s geschützt (ist drin), Auto-Rejoin testen | S | `net.js`. |
-| B7 | **Stabilität:** Jäger hängen an Küsten fest; Director-Dichte prüfen | S–M | Beobachtung im Spiel. |
+| B5 | ✅ erledigt (Rauch unter 50 % HP, dunkel unter 25 %, Splitter bei Treffern, Wrackteile beim Untergang): **Sichtbarer Schaden** | S–M | Nur Client (`render.js`, `main.js`). |
+| B6 | ✅ erledigt (Wächter, Hinweis mit Versuchszähler, Auto-Rejoin, Hafen-Ansicht kommt zurück): **Reconnect-Komfort** | S | `net.js`, `main.js`. |
+| B7 | ✅ Küsten-Hänger behoben (Test: `radar_test.exs`), Director-Dichte noch im Spiel prüfen: **Stabilität** | S–M | `wander.ex`, `state.ex` (`unstick`). |
 
 ## C. Kann (Ausbau, wenn Zeit bleibt)
 
@@ -36,7 +36,7 @@ Wetter/Stürme · Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Mus
 ## D. Übergabe (damit es ohne Claude weiterläuft)
 
 - Alles Wichtige steht in `README.md`, `CLAUDE.md`, `docs/handout.md`, `docs/decisions.md`, `docs/upgrades.md`.
-- Tests laufen mit `./mx test` (78 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
+- Tests laufen mit `./mx test` (106 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
 - Spiellogik ist in reinen Modulen (`state.ex`, `combat.ex`, `shop.ex`, ...) mit Tests; wer Elixir kann, findet
   sich schnell zurecht. Konstanten stehen oben in den Modulen.
 - Elixir-Grundlagen für Änderungen: die Module sind klein und kommentiert; Client ist reines JavaScript ohne Build.

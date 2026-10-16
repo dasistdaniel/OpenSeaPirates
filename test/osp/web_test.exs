@@ -34,10 +34,13 @@ defmodule Osp.WebTest do
       assert {:push, {:text, json}, state} =
                send_json(state, %{t: "join", token: "abcdefgh1234", name: "  Anna  "})
 
-      assert %{"t" => "welcome", "you" => "abcdefgh1234", "chunk" => 16, "res" => 2} =
+      assert %{"t" => "welcome", "you" => you, "chunk" => 16, "res" => 2} =
                Jason.decode!(json)
 
       assert state.id == "abcdefgh1234"
+      # nach außen nie das geheime Token, sondern die öffentliche Kennung
+      assert you == Osp.State.public_id("abcdefgh1234")
+      refute you == "abcdefgh1234"
 
       {:ok, fresh} = Socket.init([])
       assert {:stop, :normal, 1008, _} = send_json(fresh, %{t: "join", token: "x!", name: "A"})

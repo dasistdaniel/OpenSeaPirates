@@ -102,6 +102,8 @@ defmodule Osp.World do
     # Neue Spieler nur bis zur Obergrenze; wer schon in der Welt ist (Wiederverbinden), darf immer
     if Map.has_key?(state.sim.ships, id) or State.player_count(state.sim) < state.max_players do
       {state, info} = do_join(state, id, name, pid)
+      # Wer angedockt wiederkommt (Verbindung abgerissen), bekommt die Hafen-Ansicht erneut
+      if view = State.shop_view(state.sim, id), do: reply_shop(state, id, view)
       {:reply, {:ok, info}, state}
     else
       {:reply, {:error, :full}, state}

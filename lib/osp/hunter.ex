@@ -45,7 +45,7 @@ defmodule Osp.Hunter do
     want = if dist > @range + 1.5, do: to, else: abeam
 
     want =
-      if blocked_ahead?(ship, solid?), do: ship.heading + 1.2, else: want
+      if blocked_ahead?(ship, solid?), do: Wander.escape_heading(ship, solid?), else: want
 
     diff = norm(want - ship.heading)
     keys = %{up?: true, left?: diff < -0.1, right?: diff > 0.1}

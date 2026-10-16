@@ -23,7 +23,8 @@ defmodule Osp.WorldTest do
     assert {:ok, %{id: "p1", chunk: 16, resolution: 2, land: land}} = World.join(w, "p1", "Anna")
     assert land > 0.5
 
-    assert_receive {:osp_snap, %{t: "snap", you: "p1", ships: [%{i: "p1", n: "Anna"}]}}, 500
+    pub = Osp.State.public_id("p1")
+    assert_receive {:osp_snap, %{t: "snap", you: ^pub, ships: [%{i: ^pub, n: "Anna"}]}}, 500
   end
 
   test "Eingabe bewegt das Schiff" do
@@ -60,8 +61,9 @@ defmodule Osp.WorldTest do
     end)
 
     flush()
-    assert_receive {:osp_snap, %{you: "p1", ships: ships}}, 500
-    assert Enum.map(ships, & &1.i) == ["p1"]
+    pub = Osp.State.public_id("p1")
+    assert_receive {:osp_snap, %{you: ^pub, ships: ships}}, 500
+    assert Enum.map(ships, & &1.i) == [pub]
   end
 
   test "Wiederverbinden mit gleichem Token behält das Schiff; Verlassen entfernt es" do

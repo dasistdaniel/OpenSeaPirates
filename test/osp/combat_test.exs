@@ -290,12 +290,13 @@ defmodule Osp.CombatTest do
 
     events = [{:fire, "a", :right, a.x, a.y}, {:fire, "z", :left, a.x + 500.0, a.y}]
     snap = State.snapshot_for(s, "a", events)
+    pub_a = Osp.State.public_id("a")
 
-    assert snap.t == "snap" and snap.you == "a"
+    assert snap.t == "snap" and snap.you == Osp.State.public_id("a")
     assert %{g: 0, rl: 0, rr: rr, k: 0, d: 0, rs: 0} = snap.me
     assert rr > 0
     assert length(snap.balls) == 3
-    assert [["fire", "a", "right", _, _]] = snap.ev
+    assert [["fire", ^pub_a, "right", _, _]] = snap.ev
     assert {:ok, _} = Jason.encode(snap)
     assert State.snapshot_for(s, "gibtsnicht", []) == nil
   end

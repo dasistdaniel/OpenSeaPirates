@@ -53,6 +53,35 @@ html, body {
   pointer-events: none;
 }
 
+#board {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  min-width: 190px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 12px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+#board h4 {
+  margin: 0 0 2px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#board .row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+#board .row.me { color: var(--gold); font-weight: 700; }
+#board .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#board .name { flex: 1; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+#board .num { color: var(--muted); min-width: 2.4em; text-align: right; }
+#board .arrow { display: inline-block; width: 14px; text-align: center; color: var(--gold); }
+#board[hidden] { display: none; }
+
 #status {
   position: fixed;
   top: 12px;

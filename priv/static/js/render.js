@@ -1,6 +1,8 @@
 // Zeichnet die Welt: Wasser, Gelände-Chunks, Schiffe, Kugeln, Effekte und das HUD
 
 const PI = Math.PI
+import { SPRITE_COLORS as PLAYER_COLORS } from "./minimap.js"
+
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
 const WE_PER_PX = 1.5 / 113 // Maßstab der Schiffsbilder
@@ -22,6 +24,7 @@ export class Renderer {
     this.parts = [] // Effekte: Kielwasser, Explosionen, Zahlen, Splash
     this.feed = [] // Abschuss-Meldungen
     this.lastWake = new Map()
+    this.lastSmoke = new Map()
 
     this.sprites = {} // "klasse_farbe" -> Image (lazy)
     this.tiles = {}
@@ -90,8 +93,49 @@ export class Renderer {
     if (me && me.a) this.drawShip(me, cam, true, now)
     this.drawBalls(state, cam)
     this.drawParts(now, cam)
+    this.drawPlayerPointers(state, me, cam)
     this.drawCompass(state, me)
     this.drawHud(state, me, now)
+  }
+
+  // Pfeile am Bildrand zu Spielern außerhalb des Bildschirms: Name und Entfernung in WE
+  drawPlayerPointers(state, me, cam) {
+    if (!me || !this.players) return
+    const { ctx, canvas, dpr } = this
+    const live = new Map(state.ships.map((s) => [s.i, s]))
+    const W = canvas.width, H = canvas.height
+    const inset = 46 * dpr
+    for (const [id, name, color, px, py] of this.players) {
+      if (id === state.you) continue
+      const s = live.get(id)
+      const x = s ? s.x : px, y = s ? s.y : py
+      const sx = this.sx(x, cam), sy = this.sy(y, cam)
+      if (sx > inset && sx < W - inset && sy > inset && sy < H - inset) continue
+      const dx = sx - W / 2, dy = sy - H / 2
+      const f = Math.min((W / 2 - inset) / Math.max(Math.abs(dx), 1), (H / 2 - inset) / Math.max(Math.abs(dy), 1))
+      const ax = W / 2 + dx * f, ay = H / 2 + dy * f
+      ctx.save()
+      ctx.translate(ax, ay)
+      ctx.rotate(Math.atan2(dy, dx))
+      ctx.beginPath()
+      ctx.moveTo(13 * dpr, 0); ctx.lineTo(-8 * dpr, -9 * dpr); ctx.lineTo(-8 * dpr, 9 * dpr); ctx.closePath()
+      ctx.fillStyle = PLAYER_COLORS[color % PLAYER_COLORS.length]
+      ctx.fill()
+      ctx.strokeStyle = "rgba(0,0,0,0.7)"
+      ctx.lineWidth = 2 * dpr
+      ctx.stroke()
+      ctx.restore()
+      const label = `${name} · ${Math.round(Math.hypot(x - me.x, y - me.y))}`
+      ctx.font = `700 ${Math.round(12 * dpr)}px sans-serif`
+      ctx.textAlign = dx > 0 ? "right" : "left"
+      ctx.textBaseline = "middle"
+      const tx = ax + (dx > 0 ? -18 : 18) * dpr
+      ctx.strokeStyle = "rgba(0,0,0,0.7)"
+      ctx.lineWidth = 3 * dpr
+      ctx.strokeText(label, tx, ay)
+      ctx.fillStyle = "#f1f5f9"
+      ctx.fillText(label, tx, ay)
+    }
   }
 
   drawChunks(cam) {
@@ -183,6 +227,28 @@ export class Renderer {
   }
 
   drawWakes(state, now, cam) {
+    // Rauch aus angeschlagenen Schiffen: ab halber Gesundheit grau, unter einem Viertel dicht und schwarz;
+    // er treibt mit dem Wind
+    const wx = Math.cos(state.w), wy = Math.sin(state.w)
+    for (const s of state.ships) {
+      if (!s.a || s.mh <= 0) continue
+      const ratio = s.hp / s.mh
+      if (ratio >= 0.5) continue
+      const every = ratio < 0.25 ? 70 : 150
+      if (now - (this.lastSmoke.get(s.i) || 0) < every) continue
+      this.lastSmoke.set(s.i, now)
+      this.parts.push({
+        t: "smoke",
+        x: s.x + (Math.random() - 0.5) * 0.3,
+        y: s.y + (Math.random() - 0.5) * 0.3,
+        vx: wx * 0.35,
+        vy: wy * 0.35 - 0.12,
+        born: now,
+        life: 1500 + Math.random() * 700,
+        dark: ratio < 0.25,
+      })
+    }
+
     for (const s of state.ships) {
       if (s.a && s.v > 0.4 && now - (this.lastWake.get(s.i) || 0) > 90) {
         this.lastWake.set(s.i, now)
@@ -374,6 +440,25 @@ export class Renderer {
         ctx.strokeStyle = `rgba(255,255,255,${0.45 * (1 - age)})`
         ctx.lineWidth = 2
         ctx.stroke()
+      } else if (p.t === "smoke") {
+        const sec = (now - p.born) / 1000
+        const px = this.sx(p.x + p.vx * sec, cam), py = this.sy(p.y + p.vy * sec, cam)
+        ctx.beginPath()
+        ctx.arc(px, py, (0.1 + age * 0.38) * scale, 0, 2 * PI)
+        ctx.fillStyle = p.dark ? `rgba(20,20,24,${0.55 * (1 - age)})` : `rgba(110,115,122,${0.45 * (1 - age)})`
+        ctx.fill()
+      } else if (p.t === "plank") {
+        // Wrackteil: gleitet mit Reibung aus, dreht sich, taucht zum Ende hin ab
+        const sec = (now - p.born) / 1000
+        const slide = (1 - Math.exp(-1.6 * sec)) / 1.6
+        const px = this.sx(p.x + p.vx * slide, cam), py = this.sy(p.y + p.vy * slide, cam)
+        ctx.save()
+        ctx.translate(px, py)
+        ctx.rotate(p.rot + p.vr * sec)
+        ctx.globalAlpha = Math.min(1, (1 - age) * 3)
+        ctx.fillStyle = p.light ? "#a9743a" : "#7a4a22"
+        ctx.fillRect((-p.len * scale) / 2, (-0.045 * scale), p.len * scale, 0.09 * scale)
+        ctx.restore()
       } else if (p.t === "expl") {
         const im = this.expl[Math.min(Math.floor(age * 2.99), 2)]
         const size = p.size * scale * (0.6 + 0.6 * age)

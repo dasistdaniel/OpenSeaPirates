@@ -25,6 +25,23 @@ export class Net {
     this.wanted = false
     this.retry = 0
     this.token = playerToken()
+    this.lastMsg = 0
+    this.unstable = false
+    // Wächter: kommen länger keine Schnappschüsse mehr an, ist die Leitung oft still gestorben
+    // (WLAN-Wechsel, Standby). Erst Hinweis, dann Verbindung kappen und neu aufbauen.
+    setInterval(() => this.watch(), 1000)
+  }
+
+  watch() {
+    // Hintergrund-Tabs drosseln Zeitgeber und Nachrichten; dort nicht vorschnell trennen
+    if (!this.ready || !this.joined || document.hidden) return
+    const quiet = performance.now() - this.lastMsg
+    if (quiet > 9000) {
+      this.ws.close()
+    } else if (quiet > 3500 && !this.unstable) {
+      this.unstable = true
+      this.h.onStatus?.("Verbindung wackelt …")
+    }
   }
 
   connect(name) {
@@ -41,14 +58,24 @@ export class Net {
 
     ws.onopen = () => {
       this.retry = 0
+      this.joined = false
+      this.lastMsg = performance.now()
       this.h.onStatus?.(null)
       this.send({ t: "join", token: this.token, name: this.name })
     }
 
     ws.onmessage = (ev) => {
+      this.lastMsg = performance.now()
+      if (this.unstable) {
+        this.unstable = false
+        this.h.onStatus?.(null)
+      }
       if (typeof ev.data === "string") {
         const msg = JSON.parse(ev.data)
-        if (msg.t === "welcome") this.h.onWelcome?.(msg)
+        if (msg.t === "welcome") {
+          this.joined = true
+          this.h.onWelcome?.(msg)
+        }
         else if (msg.t === "snap") this.h.onSnap?.(msg)
         else if (msg.t === "shop") this.h.onShop?.(msg)
         else if (msg.t === "error") this.h.onError?.(msg)
@@ -63,10 +90,12 @@ export class Net {
     }
 
     ws.onclose = () => {
-      this.h.onStatus?.("Verbindung verloren – verbinde neu …")
+      this.joined = false
+      this.unstable = false
       if (!this.wanted) return
       const delay = Math.min(1000 * 2 ** this.retry, 5000)
       this.retry++
+      this.h.onStatus?.(`Verbindung verloren – neuer Versuch ${this.retry} …`)
       setTimeout(() => this.wanted && this.open(), delay)
     }
   }

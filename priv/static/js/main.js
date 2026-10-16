@@ -7,6 +7,7 @@ import { Renderer } from "./render.js"
 import { Snapshots } from "./snapshots.js"
 import { Minimap } from "./minimap.js"
 import { Sound } from "./audio.js"
+import { SPRITE_COLORS } from "./minimap.js"
 import { Shop } from "./shop.js"
 
 const NAME_KEY = "osp-name"
@@ -18,14 +19,21 @@ const posEl = $("hud-pos")
 
 const snaps = new Snapshots()
 const sound = new Sound()
+const players = { list: [] } // alle Spieler [Kennung, Name, Farbe, x, y, Abschüsse, Gold], alle 0,5 s neu
 const names = new Map() // id -> Name (für Meldungen, auch von Schiffen außer Sicht)
 let joined = false
+let worldSeed = null
 let myId = null
 let docked = false
 
 const net = new Net({
   onWelcome(msg) {
-    chunks.configure(msg)
+    // Gelände nur neu laden, wenn die Welt eine andere ist (Server-Neustart mit neuem Seed)
+    if (msg.seed !== worldSeed) chunks.configure(msg)
+    worldSeed = msg.seed
+    snaps.list.length = 0 // keine Interpolation über die Lücke der Unterbrechung
+    docked = shop.update({ t: "shop", open: false }) // Hafen-Ansicht kommt vom Server, falls angedockt
+    input.releaseAll()
     myId = msg.you
     joined = true
     input.enabled = true
@@ -35,6 +43,7 @@ const net = new Net({
   onSnap(msg) {
     snaps.push(msg)
     for (const s of msg.ships) names.set(s.i, s.n)
+    if (msg.pl) players.list = msg.pl
     for (const ev of msg.ev || []) handleEvent(ev)
   },
   onShop(msg) {
@@ -84,6 +93,18 @@ const renderer = new Renderer($("game"), chunks)
 const minimap = new Minimap($("minimap"), chunks)
 const shop = new Shop($("shop"), net)
 
+// Holzsplitter und Wrackteile: fliegen auseinander, treiben aus und versinken
+function splinters(x, y, n, life = 1100) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 2 * Math.PI, v = 0.8 + Math.random() * 1.8
+    renderer.effect({
+      t: "plank", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      rot: Math.random() * 6.3, vr: (Math.random() - 0.5) * 6, len: 0.16 + Math.random() * 0.22,
+      light: Math.random() < 0.4, life: life * (0.7 + Math.random() * 0.5),
+    })
+  }
+}
+
 // --- Ereignisse vom Server: Effekte und Ton -----------------------------------------------
 function handleEvent(ev) {
   const kind = ev[0]
@@ -96,6 +117,7 @@ function handleEvent(ev) {
   } else if (kind === "hit") {
     const [, victim, by, amount, x, y] = ev
     renderer.effect({ t: "expl", x, y, life: 420, size: amount >= 3 ? 1.1 : 0.55 })
+    splinters(x, y, 3)
     renderer.effect({
       t: "text", x, y, life: 800, text: "-" + amount, color: victim === myId ? "#fca5a5" : "#fde68a",
     })
@@ -103,6 +125,7 @@ function handleEvent(ev) {
   } else if (kind === "kill") {
     const [, killer, victim, x, y] = ev
     renderer.effect({ t: "expl", x, y, life: 800, size: 2.0 })
+    splinters(x, y, 12, 5200)
     renderer.killFeed(`${killer ? nm(killer) : "Riff"} ⚓ ${nm(victim)}`, killer === myId || victim === myId)
     sound.play("kill", 1)
   } else if (kind === "splash") {
@@ -150,6 +173,38 @@ $("join-form").addEventListener("submit", (e) => {
 const LOAD_RADIUS_WE = 48 // Chunks in diesem Umkreis laden (Bildschirm ± Minikarte)
 
 let lastHeading = 0
+let lastBoard = 0
+
+// Rangliste der Online-Spieler: Abschüsse, Gold, Richtung und Entfernung (Namen nur als Text einsetzen)
+const boardEl = $("board")
+function renderBoard(me, state) {
+  const list = [...players.list].sort((a, b) => b[5] - a[5] || b[6] - a[6]).slice(0, 8)
+  const live = new Map(state.ships.map((s) => [s.i, s]))
+  boardEl.hidden = list.length === 0
+  const rows = [Object.assign(document.createElement("h4"), { textContent: "Online" })]
+  for (const [id, name, color, px, py, kills, gold] of list) {
+    const row = document.createElement("div")
+    row.className = "row" + (id === state.you ? " me" : "")
+    const dot = document.createElement("span")
+    dot.className = "dot"
+    dot.style.background = SPRITE_COLORS[color % SPRITE_COLORS.length]
+    const nm = Object.assign(document.createElement("span"), { className: "name", textContent: name })
+    const k = Object.assign(document.createElement("span"), { className: "num", textContent: `⚔${kills}` })
+    const g = Object.assign(document.createElement("span"), { className: "num", textContent: `${gold}g` })
+    const arrow = Object.assign(document.createElement("span"), { className: "arrow" })
+    const dist = Object.assign(document.createElement("span"), { className: "num" })
+    if (id !== state.you) {
+      const s = live.get(id)
+      const x = s ? s.x : px, y = s ? s.y : py
+      arrow.textContent = "➤"
+      arrow.style.transform = `rotate(${Math.atan2(y - me.y, x - me.x)}rad)`
+      dist.textContent = String(Math.round(Math.hypot(x - me.x, y - me.y)))
+    }
+    row.append(dot, nm, k, g, arrow, dist)
+    rows.push(row)
+  }
+  boardEl.replaceChildren(...rows)
+}
 
 function frame(now) {
   requestAnimationFrame(frame)
@@ -161,7 +216,12 @@ function frame(now) {
     if (me) {
       shop.setColor(me.c)
       chunks.ensureAround(me.x, me.y, LOAD_RADIUS_WE)
-      minimap.draw(me, state.ships, now)
+      minimap.draw(me, state.ships, now, players.list)
+      renderer.players = players.list
+      if (now - lastBoard > 250) {
+        lastBoard = now
+        renderBoard(me, state)
+      }
       const dh = Math.abs(Math.atan2(Math.sin(me.h - lastHeading), Math.cos(me.h - lastHeading)))
       lastHeading = me.h
       sound.ambient(me.v, Math.cos(me.h - state.w) * 0.4, dh > 0.01 && me.v > 0.3, now)

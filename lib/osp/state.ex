@@ -43,6 +43,15 @@ defmodule Osp.State do
   @type t :: %__MODULE__{}
 
   def aoi, do: @aoi
+
+  @doc """
+  Öffentliche Kennung eines Schiffs für alle Nachrichten an Clients. Spieler-IDs sind geheime Tokens
+  (sie öffnen das gespeicherte Profil) und dürfen andere nie erreichen; daher ein Hash. NPCs behalten
+  ihre ID (`"npc-…"`; Spieler-Tokens mit diesem Präfix werden am Socket abgelehnt).
+  """
+  def public_id(nil), do: nil
+  def public_id("npc-" <> _ = id), do: id
+  def public_id(id), do: "p" <> Integer.to_string(:erlang.phash2({:osp, id}, 4_294_967_296))
   def idle, do: %{up?: false, left?: false, right?: false}
 
   @doc """
@@ -135,7 +144,8 @@ defmodule Osp.State do
       deaths: 0,
       damage: 0.0,
       last_hit_by: nil,
-      flee: nil
+      flee: nil,
+      stuck: 0
     }
   end
 
@@ -404,6 +414,7 @@ defmodule Osp.State do
     Enum.reduce(Map.keys(state.targets), {state, []}, fn id, {acc, ev} ->
       case acc.ships[id] do
         %{alive?: true, kind: :hunter} = ship ->
+          ship = unstick(ship, solid?)
           enemy = nearest_player(acc, ship, @hunter_aggro)
 
           {keys, fires, target, rng} =
@@ -422,12 +433,24 @@ defmodule Osp.State do
           end)
 
         %{alive?: true, kind: :merchant} = ship ->
-          think_merchant(acc, ev, id, ship, solid?)
+          think_merchant(acc, ev, id, unstick(ship, solid?), solid?)
 
         _ ->
           {acc, ev}
       end
     end)
+  end
+
+  # Hängt ein NPC (an einer Küste, in einer Bucht) länger als ~0,8 s fast ohne Fahrt fest, richtet er
+  # sich zur freiesten Richtung aus, statt dieselbe Kurve immer wieder in die Küste zu fahren.
+  defp unstick(ship, solid?) do
+    if ship.speed < 0.15 do
+      if ship.stuck >= 3,
+        do: %{ship | stuck: 0, heading: Wander.free_heading(ship, solid?)},
+        else: %{ship | stuck: ship.stuck + 1}
+    else
+      %{ship | stuck: 0}
+    end
   end
 
   # Händler: friedlich, bis jemand sie trifft. Dann stellen sie den Angreifer querab und feuern
@@ -515,6 +538,7 @@ defmodule Osp.State do
       w: r3(Sailing.wind_angle(state.wind)),
       wi: max(state.wind_at - t, 0),
       ships: for({_, s} <- state.ships, do: {s.x, s.y, ship_entry(s, t)}),
+      players: players_list(state),
       balls: for(b <- state.balls, do: {b.x, b.y, [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]}),
       loot: for(p <- state.loot, do: {p.x, p.y, [p.id, r2(p.x), r2(p.y), p.gold]}),
       events: for(e <- events, entry = event_entry(e), do: entry)
@@ -545,7 +569,7 @@ defmodule Osp.State do
           time: t,
           w: ctx.w,
           wi: ctx.wi,
-          you: id,
+          you: public_id(id),
           ships: for({x, y, e} <- ctx.ships, near?.(x, y), do: e),
           balls: for({x, y, e} <- ctx.balls, near?.(x, y), do: e),
           ports:
@@ -573,12 +597,26 @@ defmodule Osp.State do
           },
           ev: for({x, y, e} <- ctx.events, near?.(x, y), do: e)
         }
+        |> put_players(ctx)
     end
   end
 
+  # Alle Spieler der Welt (für Rangliste und Richtungsanzeige), nur alle 0,5 s im Schnappschuss:
+  # [Kennung, Name, Farbe, x, y, Abschüsse, Gold (getragen + Bank)]
+  defp players_list(state) do
+    for {_, s} <- state.ships, s.kind == :player, s.alive? do
+      [public_id(s.id), s.name, s.color, r1(s.x), r1(s.y), s.kills, s.gold + s.bank]
+    end
+  end
+
+  defp put_players(snap, %{time: t, players: players}) when rem(t, 500) == 0,
+    do: Map.put(snap, :pl, players)
+
+  defp put_players(snap, _ctx), do: snap
+
   defp ship_entry(s, t) do
     %{
-      i: s.id,
+      i: public_id(s.id),
       n: s.name,
       c: s.color,
       x: r2(s.x),
@@ -602,13 +640,20 @@ defmodule Osp.State do
 
   # Ereignisse als kurze JSON-Arrays mit Position (für den Umkreis-Filter)
   defp event_entry({:fire, id, side, x, y}),
-    do: {x, y, ["fire", id, to_string(side), r2(x), r2(y)]}
+    do: {x, y, ["fire", public_id(id), to_string(side), r2(x), r2(y)]}
 
-  defp event_entry({:loot, id, gold, x, y}), do: {x, y, ["loot", id, gold, r2(x), r2(y)]}
-  defp event_entry({:respawn, id, x, y}), do: {x, y, ["respawn", id, r2(x), r2(y)]}
+  defp event_entry({:loot, id, gold, x, y}),
+    do: {x, y, ["loot", public_id(id), gold, r2(x), r2(y)]}
+
+  defp event_entry({:respawn, id, x, y}), do: {x, y, ["respawn", public_id(id), r2(x), r2(y)]}
   defp event_entry({:splash, x, y}), do: {x, y, ["splash", r2(x), r2(y)]}
-  defp event_entry({:hit, v, by, amount, x, y}), do: {x, y, ["hit", v, by, amount, r2(x), r2(y)]}
-  defp event_entry({:kill, killer, v, x, y}), do: {x, y, ["kill", killer, v, r2(x), r2(y)]}
+
+  defp event_entry({:hit, v, by, amount, x, y}),
+    do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:kill, killer, v, x, y}),
+    do: {x, y, ["kill", public_id(killer), public_id(v), r2(x), r2(y)]}
+
   defp event_entry(_other), do: nil
 
   # Runden ohne Float.round (deutlich schneller); Erlang-round rundet .5 von Null weg

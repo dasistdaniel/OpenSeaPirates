@@ -31,8 +31,8 @@ defmodule Osp.Wander do
     want =
       if solid?.(ahead_x, ahead_y) or
            solid?.(ship.x + :math.cos(ship.heading) * 1.0, ship.y + :math.sin(ship.heading) * 1.0) do
-        # Land voraus: nach rechts abdrehen
-        ship.heading + 1.2
+        # Land voraus: zur nächsten freien Richtung abdrehen
+        escape_heading(ship, solid?)
       else
         case flee do
           {fx, fy} ->
@@ -48,6 +48,38 @@ defmodule Osp.Wander do
     diff = norm(want - ship.heading)
     keys = %{up?: true, left?: diff < -0.1, right?: diff > 0.1}
     {keys, target, rng}
+  end
+
+  @doc """
+  Kurs für das Ausweichen vor Land voraus: die freie Richtung mit der kleinsten Kursänderung
+  (links oder rechts, je nachdem, wo mehr Platz ist); ist nirgends frei, wird gewendet.
+  """
+  def escape_heading(ship, solid?) do
+    candidates = for k <- 1..8, sign <- [1, -1], do: ship.heading + sign * k * 0.4
+
+    Enum.find(candidates, ship.heading + @pi, &(not blocked?(ship, &1, solid?)))
+  end
+
+  @doc """
+  Kurs der freiesten Richtung (16 Richtungen, weit vorausgeschaut), für festgefahrene NPCs.
+  Bei Gleichstand gewinnt die Richtung nahe am aktuellen Kurs.
+  """
+  def free_heading(ship, solid?) do
+    dirs = for k <- 0..15, do: ship.heading + k * @pi / 8
+
+    Enum.max_by(dirs, fn h ->
+      free =
+        Enum.count(1..8, fn n ->
+          not solid?.(ship.x + :math.cos(h) * n * 0.7, ship.y + :math.sin(h) * n * 0.7)
+        end)
+
+      free * 10 - abs(norm(h - ship.heading))
+    end)
+  end
+
+  defp blocked?(ship, h, solid?) do
+    solid?.(ship.x + :math.cos(h) * @lookahead, ship.y + :math.sin(h) * @lookahead) or
+      solid?.(ship.x + :math.cos(h), ship.y + :math.sin(h))
   end
 
   defp new_target(ship, rng) do

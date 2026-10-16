@@ -16,7 +16,8 @@ defmodule Osp.Web.Socket do
 
   **Server → Client:**
 
-    * Text `{"t":"welcome", ...}` – nach dem Beitritt (`you`, `chunk`, `res`, `land`)
+    * Text `{"t":"welcome", ...}` – nach dem Beitritt (`you`, `seed`, `chunk`, `res`, `land`); nach
+      einem Wiederverbinden kommt es erneut, ist das Schiff angedockt, folgt die Hafen-Ansicht
     * Text `{"t":"error","reason":"full"}` – Beitritt abgelehnt (Welt voll)
     * Text `{"t":"snap", ...}` – Schnappschuss, ca. 20× pro Sekunde
     * Text `{"t":"shop", ...}` – Hafen-Ansicht (`open: true` mit Angeboten) oder `open: false`,
@@ -121,7 +122,8 @@ defmodule Osp.Web.Socket do
           reply =
             %{
               t: "welcome",
-              you: info.id,
+              you: Osp.State.public_id(info.id),
+              seed: World.seed(state.world),
               chunk: info.chunk,
               res: info.resolution,
               land: info.land
@@ -229,7 +231,9 @@ defmodule Osp.Web.Socket do
   defp buy_action(_, _), do: nil
 
   defp valid_token?(token),
-    do: byte_size(token) >= 8 and String.match?(token, ~r/^[A-Za-z0-9_-]+$/)
+    do:
+      byte_size(token) >= 8 and String.match?(token, ~r/^[A-Za-z0-9_-]+$/) and
+        not String.starts_with?(token, "npc-")
 
   defp clean_name(name, token) do
     cleaned =
