@@ -19,7 +19,7 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 
 | # | Aufgabe | Aufwand | Notiz |
 |---|---|---|---|
-| B1 | **Leistung messen (M5):** Lasttest mit 30–50 Bots, Tickzeit; Spatial Hash für Kugeln/Treffer; Schnappschuss-Größe | M–L | Heute prüft jede Kugel jedes Schiff (O(n²)). Für Freundesrunde (< 10) egal, für mehr nötig. |
+| B1 | ✅ gemessen und Engpass behoben, siehe `docs/performance.md`: **Leistung messen (M5):** Lasttest mit 30–50 Bots, Tickzeit; Spatial Hash für Kugeln/Treffer; Schnappschuss-Größe | M–L | Heute prüft jede Kugel jedes Schiff (O(n²)). Für Freundesrunde (< 10) egal, für mehr nötig. |
 | B2 | **Rangliste und "Wer ist online":** Abschüsse, Gold-Rekord | M | Setzt A1 voraus. |
 | B3 | **Händler schießen zurück / Entern:** Händler sind zu leichte Beute | M | `hunter.ex` als Vorlage. |
 | B4 | **Mine** (vom M2-Plan) und weitere Sondermunition | S–M | `combat.ex`. |

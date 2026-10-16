@@ -449,60 +449,58 @@ defmodule Osp.State do
   # --- Schnappschuss -------------------------------------------------------------------
 
   @doc """
-  Sicht für einen Spieler: Schiffe, Kugeln und Ereignisse im Umkreis (`aoi/0`) plus
-  eigener Status. `nil`, wenn es das Schiff nicht gibt.
+  Die Teile eines Schnappschusses, die für alle Spieler gleich sind, **einmal je Takt** berechnet:
+  jedes Schiff, jede Kugel, jeder Münzhaufen und jedes Ereignis mit Position und fertigem Eintrag.
+  Das spart bei vielen Spielern auf engem Raum den Löwenanteil der Rechenzeit
+  (statt n² Eintragsbauten nur n); `snapshot_for/3` filtert danach nur noch nach Entfernung.
   """
-  @spec snapshot_for(t(), term(), list()) :: map() | nil
-  def snapshot_for(state, id, events) do
+  @spec snapshot_context(t(), list()) :: map()
+  def snapshot_context(state, events) do
+    t = state.time
+
+    %{
+      time: t,
+      w: r3(Sailing.wind_angle(state.wind)),
+      wi: max(state.wind_at - t, 0),
+      ships: for({_, s} <- state.ships, do: {s.x, s.y, ship_entry(s, t)}),
+      balls: for(b <- state.balls, do: {b.x, b.y, [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]}),
+      loot: for(p <- state.loot, do: {p.x, p.y, [p.id, r2(p.x), r2(p.y), p.gold]}),
+      events: for(e <- events, entry = event_entry(e), do: entry)
+    }
+  end
+
+  @doc """
+  Sicht für einen Spieler: Schiffe, Kugeln, Beute, Häfen und Ereignisse im Umkreis (`aoi/0`) plus
+  eigener Status. `ctx_or_events` ist der gemeinsame Kontext (`snapshot_context/2`) oder – bequem
+  für Tests – direkt die Ereignisliste. `nil`, wenn es das Schiff nicht gibt.
+  """
+  @spec snapshot_for(t(), term(), map() | list()) :: map() | nil
+  def snapshot_for(state, id, events) when is_list(events),
+    do: snapshot_for(state, id, snapshot_context(state, events))
+
+  def snapshot_for(state, id, ctx) do
     case state.ships[id] do
       nil ->
         nil
 
       me ->
-        near? = fn x, y -> (x - me.x) * (x - me.x) + (y - me.y) * (y - me.y) <= @aoi * @aoi end
-        t = state.time
+        aoi2 = @aoi * @aoi
+        near? = fn x, y -> (x - me.x) * (x - me.x) + (y - me.y) * (y - me.y) <= aoi2 end
+        t = ctx.time
 
         %{
           t: "snap",
           time: t,
-          w: Float.round(Sailing.wind_angle(state.wind), 3),
-          wi: max(state.wind_at - t, 0),
+          w: ctx.w,
+          wi: ctx.wi,
           you: id,
-          ships:
-            for {_, s} <- state.ships, near?.(s.x, s.y) do
-              %{
-                i: s.id,
-                n: s.name,
-                c: s.color,
-                x: r2(s.x),
-                y: r2(s.y),
-                h: r2(s.heading),
-                v: r2(s.speed),
-                hp: Float.round(max(s.hp, 0.0), 1),
-                mh: s.max_hp,
-                a: s.alive?,
-                iv: s.invuln_until > t,
-                k: s.kills,
-                kd: Atom.to_string(s.kind),
-                cl: Atom.to_string(s.class),
-                rd: s.radius,
-                dk: s.docked != nil,
-                bu: s.burn_until > t,
-                sl: s.slow_until > t
-              }
-            end,
-          balls:
-            for b <- state.balls, near?.(b.x, b.y) do
-              [b.id, r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]
-            end,
+          ships: for({x, y, e} <- ctx.ships, near?.(x, y), do: e),
+          balls: for({x, y, e} <- ctx.balls, near?.(x, y), do: e),
           ports:
             for p <- Ports.near(state.seed, me.x, me.y, @aoi) do
               [p.id, p.x, p.y, p.name, p.land]
             end,
-          loot:
-            for p <- state.loot, near?.(p.x, p.y) do
-              [p.id, r2(p.x), r2(p.y), p.gold]
-            end,
+          loot: for({x, y, e} <- ctx.loot, near?.(x, y), do: e),
           me: %{
             g: me.gold,
             b: me.bank,
@@ -520,30 +518,47 @@ defmodule Osp.State do
             d: me.deaths,
             rs: if(me.alive?, do: 0, else: max(me.respawn_at - t, 0))
           },
-          ev: for(e <- events, enc = encode(e, near?), enc != nil, do: enc)
+          ev: for({x, y, e} <- ctx.events, near?.(x, y), do: e)
         }
     end
   end
 
-  # Ereignisse als kurze JSON-Arrays; nur wenn sie im Umkreis liegen
-  defp encode({:fire, id, side, x, y}, near?),
-    do: if(near?.(x, y), do: ["fire", id, to_string(side), r2(x), r2(y)])
+  defp ship_entry(s, t) do
+    %{
+      i: s.id,
+      n: s.name,
+      c: s.color,
+      x: r2(s.x),
+      y: r2(s.y),
+      h: r2(s.heading),
+      v: r2(s.speed),
+      hp: r1(max(s.hp, 0.0)),
+      mh: s.max_hp,
+      a: s.alive?,
+      iv: s.invuln_until > t,
+      k: s.kills,
+      kd: Atom.to_string(s.kind),
+      cl: Atom.to_string(s.class),
+      rd: s.radius,
+      dk: s.docked != nil,
+      bu: s.burn_until > t,
+      sl: s.slow_until > t
+    }
+  end
 
-  defp encode({:loot, id, gold, x, y}, near?),
-    do: if(near?.(x, y), do: ["loot", id, gold, r2(x), r2(y)])
+  # Ereignisse als kurze JSON-Arrays mit Position (für den Umkreis-Filter)
+  defp event_entry({:fire, id, side, x, y}),
+    do: {x, y, ["fire", id, to_string(side), r2(x), r2(y)]}
 
-  defp encode({:respawn, id, x, y}, near?),
-    do: if(near?.(x, y), do: ["respawn", id, r2(x), r2(y)])
+  defp event_entry({:loot, id, gold, x, y}), do: {x, y, ["loot", id, gold, r2(x), r2(y)]}
+  defp event_entry({:respawn, id, x, y}), do: {x, y, ["respawn", id, r2(x), r2(y)]}
+  defp event_entry({:splash, x, y}), do: {x, y, ["splash", r2(x), r2(y)]}
+  defp event_entry({:hit, v, by, amount, x, y}), do: {x, y, ["hit", v, by, amount, r2(x), r2(y)]}
+  defp event_entry({:kill, killer, v, x, y}), do: {x, y, ["kill", killer, v, r2(x), r2(y)]}
+  defp event_entry(_other), do: nil
 
-  defp encode({:splash, x, y}, near?), do: if(near?.(x, y), do: ["splash", r2(x), r2(y)])
-
-  defp encode({:hit, v, by, amount, x, y}, near?),
-    do: if(near?.(x, y), do: ["hit", v, by, amount, r2(x), r2(y)])
-
-  defp encode({:kill, killer, v, x, y}, near?),
-    do: if(near?.(x, y), do: ["kill", killer, v, r2(x), r2(y)])
-
-  defp encode(_other, _near?), do: nil
-
-  defp r2(x), do: Float.round(x * 1.0, 2)
+  # Runden ohne Float.round (deutlich schneller); Erlang-round rundet .5 von Null weg
+  defp r1(x), do: round(x * 10.0) / 10
+  defp r2(x), do: round(x * 100.0) / 100
+  defp r3(x), do: round(x * 1000.0) / 1000
 end

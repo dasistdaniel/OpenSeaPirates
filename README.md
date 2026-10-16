@@ -23,6 +23,7 @@ und führt `mix` in einem Docker-Container aus.
 ```bash
 ./mx test               # Tests
 ./mx precommit          # Kompilieren (Warnungen = Fehler), Format, Tests
+./mx run scripts/load_test.exs    # Lasttest ohne Netzwerk (Takt-Zeit je Spielerzahl), siehe docs/performance.md
 ./mx run scripts/terrain_stats.exs   # Landanteil/Spawn-Qualität messen, ASCII-Karte
 ./mx serve              # Dev-Server im Hintergrund: http://192.168.178.20:4001
                         # (OSP_SEED=12 ./mx serve: feste Welt; scripts/find_seed.exs findet Seeds mit nahem Hafen)

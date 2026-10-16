@@ -262,7 +262,10 @@ defmodule Osp.World do
   defp send_snapshots(%{pids: pids}, _events) when map_size(pids) == 0, do: :ok
 
   defp send_snapshots(state, events) do
-    for {id, pid} <- state.pids, snap = State.snapshot_for(state.sim, id, events), snap != nil do
+    # gemeinsame Teile einmal für alle berechnen, dann je Spieler nur nach Entfernung filtern
+    ctx = State.snapshot_context(state.sim, events)
+
+    for {id, pid} <- state.pids, snap = State.snapshot_for(state.sim, id, ctx), snap != nil do
       send(pid, {:osp_snap, snap})
     end
 
