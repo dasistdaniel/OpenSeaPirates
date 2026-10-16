@@ -89,6 +89,7 @@ export class Renderer {
     this.drawPorts(state, cam, now)
     this.drawLoot(state, cam, now)
     this.drawWakes(state, now, cam)
+    this.drawParts(now, cam, true)
     for (const s of state.ships) if (s !== me && s.a) this.drawShip(s, cam, false, now)
     if (me && me.a) this.drawShip(me, cam, true, now)
     this.drawBalls(state, cam)
@@ -428,10 +429,12 @@ export class Renderer {
     }
   }
 
-  drawParts(now, cam) {
+  // under = true: nur Teile, die unter den Schiffen liegen (Kielwasser); sonst alle übrigen
+  drawParts(now, cam, under = false) {
     const { ctx, scale } = this
-    this.parts = this.parts.filter((p) => now - p.born < p.life)
+    if (!under) this.parts = this.parts.filter((p) => now - p.born < p.life)
     for (const p of this.parts) {
+      if ((p.t === "wake") !== under || now - p.born >= p.life) continue
       const age = (now - p.born) / p.life
       const cx = this.sx(p.x, cam), cy = this.sy(p.y, cam)
       if (p.t === "wake") {
