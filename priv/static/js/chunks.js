@@ -117,8 +117,7 @@ export class Chunks {
         const a = bytes[j * e + i], b = bytes[j * e + i + 1]
         const c = bytes[(j + 1) * e + i], dd = bytes[(j + 1) * e + i + 1]
         const h = (a + (b - a) * tx + (c + (dd - c) * tx - (a + (b - a) * tx)) * ty) / 255
-        // leichtes Pixelrauschen gegen Banding
-        const n = (((x * 73856093) ^ (y * 19349663)) & 15) - 7
+        const n = 0 // früheres Pixelrauschen ergab ein sichtbares Karomuster
         const o = (y * px + x) * 4
         shade(h, land, n, d, o)
       }
