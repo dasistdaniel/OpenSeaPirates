@@ -163,6 +163,14 @@ export class Renderer {
         const sx = this.sx(px, cam), sy = this.sy(py, cam)
         // Kamm quer zur Windrichtung, in der Mitte zum Wind hin gewölbt
         const nx = -wy, ny = wx
+        // nur auf Wasser: Mitte und beide Enden müssen bekannt und unter der Küste liegen
+        const shore = this.chunks.land - 0.02
+        let wet = true
+        for (const k of [-1, 0, 1]) {
+          const hh = this.chunks.heightAt(px + nx * len * k, py + ny * len * k)
+          if (hh === null || hh >= shore) { wet = false; break }
+        }
+        if (!wet) continue
         const half = len * scale
         ctx.beginPath()
         ctx.moveTo(sx - nx * half, sy - ny * half)
