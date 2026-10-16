@@ -116,4 +116,17 @@ defmodule Osp.Ships do
   def next_price(slot, level), do: Enum.at(Map.fetch!(@upgrades, slot).prices, level)
 
   def max_level, do: 3
+
+  # Segelstufen (Taste R / B): Tempo- und Wendigkeitsfaktor je Stufe
+  #   gerafft  – kleineres Segel: langsamer, dafür wendiger
+  #   voll     – Normalzustand
+  #   beisegel – Zusatzsegel: schneller, dafür träger beim Drehen
+  @sails %{
+    reefed: %{label: "Segel gerafft", speed: 0.65, turn: 1.4},
+    full: %{label: "Volle Segel", speed: 1.0, turn: 1.0},
+    studding: %{label: "Beisegel gesetzt", speed: 1.25, turn: 0.7}
+  }
+
+  def sails, do: @sails
+  def sail(mode), do: Map.fetch!(@sails, mode)
 end

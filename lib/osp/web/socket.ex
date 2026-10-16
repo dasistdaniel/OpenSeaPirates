@@ -12,6 +12,7 @@ defmodule Osp.Web.Socket do
     * `{"t":"buy","what":"class"|"upgrade"|"ammo"|"repair","id":"..."}` – im Hafen kaufen
     * `{"t":"bank","op":"deposit"|"withdraw","amount":int|"all"}` – Gold einlagern/abheben
     * `{"t":"ammo","kind":"ball"|"chain"|"fire"}` – Munition wählen (1/2/3)
+    * `{"t":"sail","mode":"reefed"|"full"|"studding"}` – Segelstufe (R raffen, B Beisegel)
 
   **Server → Client:**
 
@@ -49,6 +50,7 @@ defmodule Osp.Web.Socket do
   }
   @slots %{"cannons" => :cannons, "hull" => :hull, "sails" => :sails}
   @ammo %{"ball" => :ball, "chain" => :chain, "fire" => :fire}
+  @sails %{"reefed" => :reefed, "full" => :full, "studding" => :studding}
 
   def main_world, do: @main_world
 
@@ -165,6 +167,12 @@ defmodule Osp.Web.Socket do
   defp handle_msg(%{"t" => "ammo", "kind" => kind}, %{id: id} = state)
        when id != nil and kind in ["ball", "chain", "fire"] do
     World.ammo(state.world, id, @ammo[kind])
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "sail", "mode" => mode}, %{id: id} = state)
+       when id != nil and mode in ["reefed", "full", "studding"] do
+    World.sail(state.world, id, @sails[mode])
     {:ok, state}
   end
 

@@ -60,6 +60,9 @@ defmodule Osp.World do
   @doc "Munitionsart wählen: `:ball`, `:chain` oder `:fire`."
   def ammo(world, id, kind), do: GenServer.cast(via(world), {:ammo, id, kind})
 
+  @doc "Segelstufe wählen: `:reefed`, `:full` oder `:studding`."
+  def sail(world, id, mode), do: GenServer.cast(via(world), {:sail, id, mode})
+
   @doc "Spieler verlässt die Welt sofort."
   def leave(world, id), do: GenServer.cast(via(world), {:leave, id})
 
@@ -155,6 +158,9 @@ defmodule Osp.World do
 
   def handle_cast({:ammo, id, kind}, state),
     do: {:noreply, %{state | sim: State.select_ammo(state.sim, id, kind)}}
+
+  def handle_cast({:sail, id, mode}, state),
+    do: {:noreply, %{state | sim: State.set_sail(state.sim, id, mode)}}
 
   def handle_cast({:leave, id}, state) do
     state = state |> save_ship(id) |> detach(id)

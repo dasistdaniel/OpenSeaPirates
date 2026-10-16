@@ -221,7 +221,8 @@ export class Renderer {
     if (s.iv && Math.floor(now / 120) % 2) ctx.globalAlpha = 0.45
     ctx.rotate(s.h - PI / 2) // Sprite: Bug zeigt nach unten (+90°)
     if (im.complete && im.naturalWidth) {
-      const w = im.naturalWidth * WE_PER_PX * scale, h = im.naturalHeight * WE_PER_PX * scale
+      const sail = { reefed: 0.8, full: 1, studding: 1.14 }[s.sa] || 1
+      const w = im.naturalWidth * WE_PER_PX * scale * sail, h = im.naturalHeight * WE_PER_PX * scale
       ctx.drawImage(im, -w / 2, -h / 2, w, h)
     } else {
       ctx.fillStyle = "#ccc"
@@ -376,6 +377,13 @@ export class Renderer {
     ctx.font = `600 ${10 * u}px sans-serif`
     ctx.fillStyle = "#94a3b8"
     ctx.fillText("WIND", cx, cy - 40 * u)
+
+    if (me) {
+      const sails = { reefed: "Segel gerafft", full: "Volle Segel", studding: "Beisegel" }
+      ctx.font = `700 ${11 * u}px sans-serif`
+      ctx.fillStyle = me.sa === "full" ? "#94a3b8" : "#fde68a"
+      ctx.fillText("⛵ " + (sails[me.sa] || ""), cx, cy + 46 * u)
+    }
 
     if (me) {
       const bonus = Math.round(40 * Math.cos(me.h - state.w))

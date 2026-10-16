@@ -111,6 +111,7 @@ defmodule Osp.State do
       bounty: 0,
       ammo: %{},
       ammo_sel: :ball,
+      sail: :full,
       docked: nil,
       slow_until: 0,
       burn_until: 0,
@@ -322,6 +323,16 @@ defmodule Osp.State do
 
   def select_ammo(state, _id, _kind), do: state
 
+  @doc "Segelstufe wählen: `:reefed` (gerafft), `:full` (voll), `:studding` (Beisegel)."
+  def set_sail(state, id, mode) when mode in [:reefed, :full, :studding] do
+    case state.ships[id] do
+      %{alive?: true, kind: :player} = ship -> put_ship(state, id, %{ship | sail: mode})
+      _ -> state
+    end
+  end
+
+  def set_sail(state, _id, _mode), do: state
+
   # --- Zeitschritt --------------------------------------------------------------------
 
   @doc "Spielzeit um `dt_ms` voranbringen (in Schritten à #{@step_ms} ms). `{state, events}`."
@@ -365,11 +376,18 @@ defmodule Osp.State do
       case ship.kind do
         :merchant -> {@merchant_speed, 1.0}
         :hunter -> {@hunter_speed, 1.0}
-        :player -> {Ships.stats(ship).speed_mult, Ships.stats(ship).turn_mult}
+        :player -> player_factors(ship)
       end
 
     slow = if ship.slow_until > t, do: 0.5, else: 1.0
     [cap_mult: cap * slow, turn_mult: turn]
+  end
+
+  # Klasse und Upgrades mal Segelstufe (gerafft / voll / Beisegel)
+  defp player_factors(ship) do
+    stats = Ships.stats(ship)
+    sail = Ships.sail(ship.sail)
+    {stats.speed_mult * sail.speed, stats.turn_mult * sail.turn}
   end
 
   defp turn_wind(%{time: t, wind_at: at} = state) when t >= at,
@@ -540,6 +558,7 @@ defmodule Osp.State do
             b: me.bank,
             am: %{c: Map.get(me.ammo, :chain, 0), f: Map.get(me.ammo, :fire, 0)},
             as: Atom.to_string(me.ammo_sel),
+            sa: Atom.to_string(me.sail),
             dk: me.docked && me.docked.name,
             np:
               case Ports.dockable(state.seed, me.x, me.y) do
@@ -576,7 +595,8 @@ defmodule Osp.State do
       rd: s.radius,
       dk: s.docked != nil,
       bu: s.burn_until > t,
-      sl: s.slow_until > t
+      sl: s.slow_until > t,
+      sa: Atom.to_string(s.sail)
     }
   end
 

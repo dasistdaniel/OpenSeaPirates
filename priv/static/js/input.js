@@ -1,11 +1,12 @@
 // Tastatur: W/A/D bzw. Pfeile als Zustand (u = Segel, l/r = Ruder, nur bei Änderung gesendet),
-// Q/E = Breitseite links/rechts, Leertaste = beide Seiten (gehalten feuert jeweils erneut), M = Ton.
+// Q/E = Breitseite links/rechts, Leertaste = beide Seiten (gehalten feuert jeweils erneut),
+// R = Segel raffen, B = Beisegel (jeweils umschalten, zweimal drücken = volle Segel), M = Ton.
 
 export class Input {
-  constructor({ onKeys, onFire, onMute, onDock, onAmmo, onHelp }) {
+  constructor({ onKeys, onFire, onMute, onDock, onAmmo, onHelp, onSail }) {
     this.keys = { u: false, l: false, r: false }
     this.firing = { left: false, right: false }
-    this.h = { onKeys, onFire, onMute, onDock, onAmmo, onHelp }
+    this.h = { onKeys, onFire, onMute, onDock, onAmmo, onHelp, onSail }
     this.enabled = false
 
     window.addEventListener("keydown", (e) => this.key(e, true))
@@ -58,6 +59,8 @@ export class Input {
     if (down && !e.repeat) {
       if (e.code === "KeyF") return void this.h.onDock()
       if (e.code === "KeyH") return void this.h.onHelp()
+      if (e.code === "KeyR") return void this.h.onSail("reefed")
+      if (e.code === "KeyB") return void this.h.onSail("studding")
       if (e.code === "Escape") return void this.h.onDock(true)
       const ammo = { Digit1: "ball", Digit2: "chain", Digit3: "fire" }[e.code]
       if (ammo) return void this.h.onAmmo(ammo)

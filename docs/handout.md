@@ -59,6 +59,7 @@ Alle Maße in **Welteinheiten (WE)**; 1 WE ≈ Kantenlänge eines Geländefelds.
 | Wert | Startwert | Bemerkung |
 |---|---|---|
 | Schiffsradius (Treffer/Kollision) | 0,36 WE | |
+| Segelstufen (R/B) | gerafft ×0,65 Tempo / ×1,4 Wendigkeit; Beisegel ×1,25 / ×0,7 | |
 | Höchsttempo (Basis, ohne Wind) | 2,0 WE/s | Wind: 2,8 mit, 1,2 gegen den Wind; M1-Spieltest: 1,4 war zu langsam |
 | Beschleunigung | 1,5 WE/s² | |
 | Auslaufen ohne Segel | 0,7 WE/s² | |

@@ -66,6 +66,11 @@ const input = new Input({
   onMute: () => sound.toggle(),
   onAmmo: (kind) => net.send({ t: "ammo", kind }),
   onHelp: () => toggleHelp(),
+  // R/B schalten zwischen der Stufe und vollen Segeln um
+  onSail: (mode) => {
+    const now = snaps.latest && snaps.latest.me && snaps.latest.me.sa
+    net.send({ t: "sail", mode: now === mode ? "full" : mode })
+  },
   // F: andocken oder ablegen; Esc (nur ablegen)
   onDock: (onlyUndock) => {
     if (docked) net.send({ t: "undock" })
