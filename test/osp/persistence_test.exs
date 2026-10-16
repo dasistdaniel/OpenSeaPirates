@@ -99,7 +99,7 @@ defmodule Osp.PersistenceTest do
     assert Profiles.get("unbekannt", second) == nil
   end
 
-  test "Änderungen schreiben eine Sicherung; kaputte Datei startet leer ohne Absturz" do
+  test "Kaputte Datei: Sicherung wird geladen, die kaputte Datei bleibt als .corrupt erhalten" do
     dir = tmp_dir()
     p = start_profiles(dir)
     Profiles.put("a", Profile.new(), p)
@@ -110,7 +110,15 @@ defmodule Osp.PersistenceTest do
 
     File.write!(Path.join(dir, "profiles.json"), "{ das ist kein json")
     q = start_profiles(dir)
-    assert Profiles.count(q) == 0
+    # Stand aus der Sicherung (vorletzter Schreibvorgang)
+    assert Profiles.get("a", q)["gold"] == 0
+    assert File.read!(Path.join(dir, "profiles.json.corrupt")) == "{ das ist kein json"
+
+    # ohne brauchbare Sicherung: leer starten, kein Absturz
+    dir2 = tmp_dir()
+    File.write!(Path.join(dir2, "profiles.json"), "kaputt")
+    r = start_profiles(dir2)
+    assert Profiles.count(r) == 0
   end
 
   test "Gleicher Stand wird nicht erneut geschrieben, ohne Verzeichnis bleibt alles im Speicher" do

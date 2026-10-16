@@ -82,21 +82,50 @@ defmodule Osp.Profiles do
 
   defp load(nil), do: %{}
 
+  # Erst die Hauptdatei, bei Fehlern die Sicherung (.bak). Eine kaputte Hauptdatei wird nicht
+  # überschrieben, sondern zu `.corrupt` umbenannt, damit sie nicht die gute Sicherung ersetzt.
   defp load(path) do
-    with {:ok, bin} <- File.read(path),
-         {:ok, %{"profiles" => %{} = map}} <- Jason.decode(bin) do
-      Map.new(map, fn {id, p} -> {id, Profile.decode(p)} end)
-    else
+    case read_profiles(path) do
+      {:ok, profiles} ->
+        profiles
+
+      :missing ->
+        case read_profiles(path <> ".bak") do
+          {:ok, profiles} -> profiles
+          _ -> %{}
+        end
+
+      {:error, reason} ->
+        Logger.error("Profile in #{path} unlesbar (#{inspect(reason)}); versuche die Sicherung.")
+        File.rename(path, path <> ".corrupt")
+
+        case read_profiles(path <> ".bak") do
+          {:ok, profiles} ->
+            Logger.warning("Spielstände aus #{path}.bak wiederhergestellt.")
+            profiles
+
+          _ ->
+            %{}
+        end
+    end
+  end
+
+  defp read_profiles(path) do
+    case File.read(path) do
       {:error, :enoent} ->
-        %{}
+        :missing
 
-      other ->
-        Logger.error(
-          "Profile konnten nicht geladen werden (#{inspect(other)}); starte leer. " <>
-            "Sicherung: #{path}.bak"
-        )
+      {:error, reason} ->
+        {:error, reason}
 
-        %{}
+      {:ok, bin} ->
+        case Jason.decode(bin) do
+          {:ok, %{"profiles" => %{} = map}} ->
+            {:ok, Map.new(map, fn {id, p} -> {id, Profile.decode(p)} end)}
+
+          other ->
+            {:error, other}
+        end
     end
   end
 
