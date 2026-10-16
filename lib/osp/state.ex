@@ -133,15 +133,20 @@ defmodule Osp.State do
     }
   end
 
-  @doc "Spieler tritt bei oder verbindet sich neu (Schiff bleibt dann, wo es ist)."
-  @spec join(t(), term(), String.t()) :: t()
-  def join(state, id, name) do
+  @doc """
+  Spieler tritt bei oder verbindet sich neu (Schiff bleibt dann, wo es ist). Ein gespeicherter
+  `profile` (`Osp.Profile`) stellt Klasse, Upgrades, Gold, Bank, Munition und Statistik eines neuen
+  Schiffs wieder her.
+  """
+  @spec join(t(), term(), String.t(), map() | nil) :: t()
+  def join(state, id, name, profile \\ nil) do
     if Map.has_key?(state.ships, id) do
       update_ship(state, id, &%{&1 | name: name, gone_at: nil})
     else
       {x, y, heading, rng} = pick_spawn(state)
       state = %{state | rng: rng}
       ship = %{new_ship(id, name, :player, x, y, heading) | invuln_until: state.time + 2_000}
+      ship = if profile, do: Osp.Profile.apply(ship, profile), else: ship
       put_ship(state, id, ship)
     end
   end

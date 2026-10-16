@@ -8,7 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-4100}:4000"
+    volumes:
+      # Spielstände (profiles.json): bleiben bei Neustart und Deploy erhalten
+      - osp-data:/data
     environment:
       OSP_SEED: ${OSP_SEED:-}
       OSP_BOTS: ${OSP_BOTS:-0}
       OSP_ORIGINS: ${OSP_ORIGINS:-}
+
+volumes:
+  osp-data:

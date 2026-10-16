@@ -9,6 +9,8 @@ config :osp,
   director: true,
   seed: nil,
   allowed_origins: nil,
+  # Verzeichnis für profiles.json (Spielstände); nil = nur im Speicher
+  data_dir: nil,
   port: 4000
 
 config :logger, :default_formatter, format: "$time $metadata[$level] $message\n"

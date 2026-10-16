@@ -4,7 +4,9 @@ Offene, prozedurale Piraten-Welt im Browser: Echtzeit-Segeln (WASD, Wind), spät
 Gold, Häfen und Shops. Konzept, Regeln und Roadmap: [docs/handout.md](docs/handout.md),
 Technik-Entscheidungen: [docs/decisions.md](docs/decisions.md).
 
-**Stand: M4 "Häfen und Shop"**: Häfen an den Küsten (Schutzzone, Taste F zum Andocken) mit Shop –
+**Stand: M4 + Persistenz:** Spielstände (Gold, Bank, Schiff, Upgrades, Munition, Statistik) liegen
+je Token in `profiles.json` (Docker-Volume `osp-data` unter `/data`) und überleben Neustart und Deploy.
+**M4 "Häfen und Shop"**: Häfen an den Küsten (Schutzzone, Taste F zum Andocken) mit Shop –
 fünf Schiffsklassen, Upgrades für Kanonen/Rumpf/Segel, Sondermunition (Kettenkugel, Brandgeschoss,
 Tasten 1–3), Reparatur und Bank. Davor M3 "Leben in der Welt" (auf M1 "Segeln" und M2 "Kampf" aufgebaut): NPC-Händler und
 Piratenjäger (auch als Bande) tauchen um die Spieler herum auf, Abschüsse lassen Gold als Beute
@@ -35,6 +37,7 @@ Betreiber (WebSocket-Upgrade auf `/ws` durchreichen). Konfiguration über `.env`
 ```bash
 ./deploy          # Quellen syncen, bauen, starten, auf /health warten
 ./deploy logs | ./deploy stop
+./deploy backup    # Spielstände nach ~/osp-backups auf dem Server kopieren (vor jedem Deploy automatisch)
 ```
 
 ## Aufbau
@@ -50,6 +53,8 @@ lib/osp/director.ex     Bevölkert die Welt um Spieler (Händler, Jäger, Banden
 lib/osp/hunter.ex       KI der Piratenjäger (querab halten, feuern)
 lib/osp/ships.ex        Schiffsklassen und Upgrade-Stufen (Daten und stats/1)
 lib/osp/shop.ex         Hafengeschäfte: Schiff, Upgrades, Munition, Reparatur, Bank (rein)
+lib/osp/profile.ex      Spielstand eines Spielers (prüfen, auf Schiff anwenden)
+lib/osp/profiles.ex     Speicher: Speicher + atomare JSON-Datei, Sicherung .bak
 lib/osp/ports.ex        Häfen aus dem Seed (pro Chunk), Schutzzone, Andockreichweite
 lib/osp/port_cache.ex   ETS-Cache dafür
 lib/osp/world.ex        Welt-Prozess (Hülle um State): 20 Hz, Schnappschüsse mit Umkreis (AOI)

@@ -15,7 +15,7 @@ defmodule Osp.World do
 
   use GenServer, restart: :temporary
 
-  alias Osp.{State, Terrain}
+  alias Osp.{Profile, Profiles, State, Terrain}
 
   @registry Osp.WorldRegistry
   @tick_ms 50
@@ -84,6 +84,8 @@ defmodule Osp.World do
       pids: %{},
       refs: %{},
       pending: [],
+      saved: %{},
+      ticks: 0,
       tick_ms: Keyword.get(opts, :tick_ms, @tick_ms)
     }
 
@@ -95,7 +97,7 @@ defmodule Osp.World do
   def handle_call({:join, id, name, pid}, _from, state) do
     state = detach(state, id)
     ref = Process.monitor(pid)
-    sim = State.join(state.sim, id, name)
+    sim = State.join(state.sim, id, name, Profiles.get(id))
 
     state = %{
       state
@@ -166,13 +168,14 @@ defmodule Osp.World do
     do: {:noreply, %{state | sim: State.select_ammo(state.sim, id, kind)}}
 
   def handle_cast({:leave, id}, state) do
-    state = detach(state, id)
+    state = state |> save_ship(id) |> detach(id)
     {:noreply, %{state | sim: State.leave(state.sim, id), pids: Map.delete(state.pids, id)}}
   end
 
   @impl true
   def handle_info(:tick, state) do
     {sim, events} = State.tick(state.sim, state.tick_ms)
+    state = autosave(state, state.sim, sim)
     state = %{state | sim: sim}
     # Ereignisse aus Eingaben (Feuer, Powerup) gehen mit dem nächsten Takt an alle
     send_snapshots(state, state.pending ++ events)
@@ -186,6 +189,8 @@ defmodule Osp.World do
         {:noreply, state}
 
       {id, refs} ->
+        state = save_ship(state, id)
+
         {:noreply,
          %{
            state
@@ -197,6 +202,44 @@ defmodule Osp.World do
   end
 
   def handle_info(_other, state), do: {:noreply, state}
+
+  # --- Spielstände speichern ---------------------------------------------------------
+
+  # Alle 5 s geänderte Spielstände sichern; verschwundene Spieler (Schonfrist abgelaufen) ein
+  # letztes Mal mit ihrem Stand von vor dem Entfernen.
+  defp autosave(state, old_sim, new_sim) do
+    gone =
+      for {id, s} <- old_sim.ships, s.kind == :player, not Map.has_key?(new_sim.ships, id), do: s
+
+    state = Enum.reduce(gone, state, &save(&2, &1))
+    ticks = state.ticks + 1
+
+    if rem(ticks, 100) == 0 do
+      players = for {_, s} <- new_sim.ships, s.kind == :player, do: s
+      %{Enum.reduce(players, state, &save(&2, &1)) | ticks: ticks}
+    else
+      %{state | ticks: ticks}
+    end
+  end
+
+  defp save_ship(state, id) do
+    case state.sim.ships[id] do
+      %{kind: :player} = ship -> save(state, ship)
+      _ -> state
+    end
+  end
+
+  # Nur schreiben, wenn sich der Stand seit dem letzten Speichern geändert hat
+  defp save(state, ship) do
+    profile = Profile.from_ship(ship)
+
+    if state.saved[ship.id] == profile do
+      state
+    else
+      Profiles.put(ship.id, profile)
+      %{state | saved: Map.put(state.saved, ship.id, profile)}
+    end
+  end
 
   # --- Hilfen ----------------------------------------------------------------------
 

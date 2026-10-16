@@ -8,6 +8,7 @@ defmodule Osp.Application do
     children =
       [
         Osp.PortCache,
+        Osp.Profiles,
         {Registry, keys: :unique, name: Osp.WorldRegistry},
         {DynamicSupervisor, name: Osp.WorldSupervisor, strategy: :one_for_one}
       ] ++ server() ++ main_world()

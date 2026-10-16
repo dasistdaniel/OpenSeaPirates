@@ -5,6 +5,7 @@ import Config
 #   PORT              HTTP-Port im Container (4000)
 #   OSP_SEED          Seed der Hauptwelt (Zahl); ohne Angabe zufällig bei jedem Start
 #   OSP_BOTS          Anzahl fester NPC-Händler beim Start (0; den Rest macht der Director)
+#   OSP_DATA_DIR      Verzeichnis für die Spielstände (profiles.json); im Container /data (Volume)
 #   OSP_ORIGINS       erlaubte WebSocket-Origins, kommasepariert (z. B. https://osp.example.com);
 #                     ohne Angabe wird nicht geprüft
 #
@@ -26,6 +27,10 @@ end
 
 if bots = env.("OSP_BOTS") do
   config :osp, bots: String.to_integer(bots)
+end
+
+if dir = env.("OSP_DATA_DIR") do
+  config :osp, data_dir: dir
 end
 
 if origins = env.("OSP_ORIGINS") do

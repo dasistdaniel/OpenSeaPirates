@@ -38,10 +38,12 @@ RUN apt-get update \
 
 ENV LANG=C.UTF-8 \
     PORT=4000 \
+    OSP_DATA_DIR=/data \
     MIX_ENV=prod
 
 WORKDIR /app
-RUN useradd --system --create-home --shell /usr/sbin/nologin app
+RUN useradd --system --create-home --shell /usr/sbin/nologin app \
+ && mkdir /data && chown app:app /data
 COPY --from=build --chown=app:app /app/_build/prod/rel/osp ./
 USER app
 
