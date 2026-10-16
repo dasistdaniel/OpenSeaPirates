@@ -16,6 +16,7 @@ defmodule Osp.Web.Socket do
   **Server → Client:**
 
     * Text `{"t":"welcome", ...}` – nach dem Beitritt (`you`, `chunk`, `res`, `land`)
+    * Text `{"t":"error","reason":"full"}` – Beitritt abgelehnt (Welt voll)
     * Text `{"t":"snap", ...}` – Schnappschuss, ca. 20× pro Sekunde
     * Text `{"t":"shop", ...}` – Hafen-Ansicht (`open: true` mit Angeboten) oder `open: false`,
       optional mit `error`
@@ -33,6 +34,11 @@ defmodule Osp.Web.Socket do
   @max_name 20
   @chunk_burst 120
   @chunk_per_sec 60
+  # Alle anderen Nachrichten (Steuerung, Schüsse, Hafen): 50/s, Stoß bis 80; wer dauerhaft weit
+  # darüber liegt, wird getrennt
+  @act_burst 80
+  @act_per_sec 50
+  @act_drop_limit 400
 
   @classes %{
     "schaluppe" => :schaluppe,
@@ -48,13 +54,24 @@ defmodule Osp.Web.Socket do
 
   @impl true
   def init(_opts) do
-    {:ok, %{world: @main_world, id: nil, tokens: @chunk_burst, refilled: now()}}
+    t = now()
+
+    {:ok,
+     %{
+       world: @main_world,
+       id: nil,
+       tokens: @chunk_burst,
+       refilled: t,
+       act: @act_burst * 1.0,
+       act_at: t,
+       dropped: 0
+     }}
   end
 
   @impl true
   def handle_in({text, [opcode: :text]}, state) do
     case Jason.decode(text) do
-      {:ok, msg} when is_map(msg) -> handle_msg(msg, state)
+      {:ok, msg} when is_map(msg) -> throttled(msg, state)
       _ -> {:ok, state}
     end
   end
@@ -67,6 +84,27 @@ defmodule Osp.Web.Socket do
   def handle_info({:osp_shop, view}, state), do: {:push, {:text, Jason.encode!(view)}, state}
   def handle_info(_other, state), do: {:ok, state}
 
+  # --- Raten-Begrenzung ---------------------------------------------------------------
+
+  # Beitritt und Chunks haben eigene Regeln; alles andere teilt sich einen Eimer
+  defp throttled(%{"t" => t} = msg, state) when t in ["join", "chunk"], do: handle_msg(msg, state)
+
+  defp throttled(msg, state) do
+    now = now()
+    tokens = min(state.act + (now - state.act_at) / 1000 * @act_per_sec, @act_burst * 1.0)
+
+    cond do
+      tokens >= 1 ->
+        handle_msg(msg, %{state | act: tokens - 1, act_at: now})
+
+      state.dropped + 1 > @act_drop_limit ->
+        {:stop, :normal, 1008, state}
+
+      true ->
+        {:ok, %{state | act: tokens, act_at: now, dropped: state.dropped + 1}}
+    end
+  end
+
   # --- Nachrichten ---------------------------------------------------------------
 
   defp handle_msg(%{"t" => "join", "token" => token} = msg, %{id: nil} = state)
@@ -75,12 +113,24 @@ defmodule Osp.Web.Socket do
 
     if valid_token?(token) and World.alive?(state.world) do
       name = clean_name(msg["name"], token)
-      {:ok, info} = World.join(state.world, token, name, self())
 
-      reply =
-        %{t: "welcome", you: info.id, chunk: info.chunk, res: info.resolution, land: info.land}
+      case World.join(state.world, token, name, self()) do
+        {:ok, info} ->
+          reply =
+            %{
+              t: "welcome",
+              you: info.id,
+              chunk: info.chunk,
+              res: info.resolution,
+              land: info.land
+            }
 
-      {:push, {:text, Jason.encode!(reply)}, %{state | id: token}}
+          {:push, {:text, Jason.encode!(reply)}, %{state | id: token}}
+
+        {:error, reason} ->
+          # z. B. :full – der Client zeigt den Grund und gibt auf
+          {:push, {:text, Jason.encode!(%{t: "error", reason: Atom.to_string(reason)})}, state}
+      end
     else
       {:stop, :normal, 1008, state}
     end

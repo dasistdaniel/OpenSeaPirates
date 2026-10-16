@@ -6,6 +6,16 @@ export class Sound {
   constructor() {
     this.ctx = null
     try { this.muted = localStorage.getItem(KEY) === "1" } catch (_) { this.muted = false }
+    this.volume = 0.8
+    try {
+      const v = parseFloat(localStorage.getItem("osp-volume"))
+      if (v >= 0 && v <= 1) this.volume = v
+    } catch (_) {}
+  }
+
+  setVolume(v) {
+    this.volume = Math.min(Math.max(v, 0), 1)
+    try { localStorage.setItem("osp-volume", String(this.volume)) } catch (_) {}
   }
 
   toggle() {
@@ -22,7 +32,7 @@ export class Sound {
     o.frequency.setValueAtTime(f0, t0)
     o.frequency.exponentialRampToValueAtTime(f1, t0 + dur)
     const g = a.createGain()
-    g.gain.setValueAtTime(gain * vol, t0)
+    g.gain.setValueAtTime(gain * vol * this.volume, t0)
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur)
     o.connect(g).connect(a.destination)
     o.start(t0)

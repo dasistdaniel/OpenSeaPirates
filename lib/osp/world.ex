@@ -84,6 +84,7 @@ defmodule Osp.World do
       pids: %{},
       refs: %{},
       pending: [],
+      max_players: Keyword.get(opts, :max_players, 60),
       saved: %{},
       ticks: 0,
       tick_ms: Keyword.get(opts, :tick_ms, @tick_ms)
@@ -95,25 +96,13 @@ defmodule Osp.World do
 
   @impl true
   def handle_call({:join, id, name, pid}, _from, state) do
-    state = detach(state, id)
-    ref = Process.monitor(pid)
-    sim = State.join(state.sim, id, name, Profiles.get(id))
-
-    state = %{
-      state
-      | sim: sim,
-        pids: Map.put(state.pids, id, pid),
-        refs: Map.put(state.refs, ref, id)
-    }
-
-    info = %{
-      id: id,
-      chunk: Terrain.chunk_size(),
-      resolution: Terrain.resolution(),
-      land: Terrain.land_level()
-    }
-
-    {:reply, {:ok, info}, state}
+    # Neue Spieler nur bis zur Obergrenze; wer schon in der Welt ist (Wiederverbinden), darf immer
+    if Map.has_key?(state.sim.ships, id) or State.player_count(state.sim) < state.max_players do
+      {state, info} = do_join(state, id, name, pid)
+      {:reply, {:ok, info}, state}
+    else
+      {:reply, {:error, :full}, state}
+    end
   end
 
   def handle_call(:seed, _from, state), do: {:reply, state.sim.seed, state}
@@ -202,6 +191,28 @@ defmodule Osp.World do
   end
 
   def handle_info(_other, state), do: {:noreply, state}
+
+  defp do_join(state, id, name, pid) do
+    state = detach(state, id)
+    ref = Process.monitor(pid)
+    sim = State.join(state.sim, id, name, Profiles.get(id))
+
+    state = %{
+      state
+      | sim: sim,
+        pids: Map.put(state.pids, id, pid),
+        refs: Map.put(state.refs, ref, id)
+    }
+
+    info = %{
+      id: id,
+      chunk: Terrain.chunk_size(),
+      resolution: Terrain.resolution(),
+      land: Terrain.land_level()
+    }
+
+    {state, info}
+  end
 
   # --- Spielstände speichern ---------------------------------------------------------
 

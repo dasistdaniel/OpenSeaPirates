@@ -41,6 +41,14 @@ const net = new Net({
     docked = shop.update(msg)
     if (docked) input.releaseAll()
   },
+  onError(msg) {
+    const texts = { full: "Die Welt ist voll. Versuch es später noch einmal." }
+    net.wanted = false
+    net.ws && net.ws.close()
+    statusEl.hidden = false
+    statusEl.textContent = texts[msg.reason] || "Beitritt nicht möglich."
+    $("join-button").disabled = false
+  },
   onChunk(cx, cy, bytes) {
     chunks.set(cx, cy, bytes)
   },
@@ -57,6 +65,7 @@ const input = new Input({
   onFire: (side) => net.send({ t: "fire", side }),
   onMute: () => sound.toggle(),
   onAmmo: (kind) => net.send({ t: "ammo", kind }),
+  onHelp: () => toggleHelp(),
   // F: andocken oder ablegen; Esc (nur ablegen)
   onDock: (onlyUndock) => {
     if (docked) net.send({ t: "undock" })
@@ -98,6 +107,21 @@ function handleEvent(ev) {
     renderer.effect({ t: "ring", x: ev[2], y: ev[3], life: 700 })
   }
 }
+
+// --- Hilfe, Lautstärke -------------------------------------------------------------------
+const helpEl = $("help")
+function toggleHelp(force) {
+  const show = force === undefined ? helpEl.hidden : force
+  helpEl.hidden = !show
+}
+$("help-btn").addEventListener("click", () => toggleHelp())
+$("help-close").addEventListener("click", () => toggleHelp(false))
+helpEl.addEventListener("click", (e) => { if (e.target === helpEl) toggleHelp(false) })
+window.addEventListener("keydown", (e) => { if (e.code === "Escape" && !helpEl.hidden) toggleHelp(false) })
+
+const vol = $("volume")
+vol.value = String(Math.round(sound.volume * 100))
+vol.addEventListener("input", () => sound.setVolume(Number(vol.value) / 100))
 
 // --- Beitreten ----------------------------------------------------------------------
 const nameInput = $("name")

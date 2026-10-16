@@ -353,4 +353,19 @@ defmodule Osp.HarborTest do
     refute a.alive?
     assert a.class == :brigg and a.bank == 500 and a.upgrades.cannons == 1 and a.gold == 70
   end
+
+  test "Gleiche Namen werden unterscheidbar (Anna, Anna 2, ...), der eigene Name bleibt" do
+    st = State.new(4, 0)
+    st = State.join(st, "a", "Anna")
+    st = State.join(st, "b", "Anna")
+    st = State.join(st, "c", "Anna")
+
+    assert {st.ships["a"].name, st.ships["b"].name, st.ships["c"].name} ==
+             {"Anna", "Anna 2", "Anna 3"}
+
+    # erneutes Beitreten desselben Spielers mit seinem Namen ändert ihn nicht
+    st = State.join(st, "a", "Anna")
+    assert st.ships["a"].name == "Anna"
+    assert State.player_count(st) == 3
+  end
 end

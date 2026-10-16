@@ -44,8 +44,8 @@ defmodule Osp.WebTest do
     end
 
     test "ohne join werden input und chunk ignoriert", %{state: state} do
-      assert {:ok, ^state} = send_json(state, %{t: "input", u: true})
-      assert {:ok, ^state} = send_json(state, %{t: "chunk", cx: 0, cy: 0})
+      assert {:ok, %{id: nil}} = send_json(state, %{t: "input", u: true})
+      assert {:ok, %{id: nil}} = send_json(state, %{t: "chunk", cx: 0, cy: 0})
     end
 
     test "chunk antwortet binär im Protokollformat, Anfragen sind begrenzt", %{state: state} do
@@ -88,7 +88,7 @@ defmodule Osp.WebTest do
             %{t: "bank", op: "deposit", amount: -3},
             %{t: "bank", op: "deposit", amount: "viel"}
           ] do
-        assert {:ok, ^state} = send_json(state, msg)
+        assert {:ok, _} = send_json(state, msg)
       end
 
       # Hafen-Ansicht wird als JSON-Text weitergereicht
@@ -96,6 +96,50 @@ defmodule Osp.WebTest do
                Socket.handle_info({:osp_shop, %{t: "shop", open: false}}, state)
 
       assert %{"t" => "shop", "open" => false} = Jason.decode!(json)
+    end
+
+    test "Raten-Begrenzung: Stoß wird angenommen, dauerhaftes Überfluten verworfen und getrennt",
+         %{state: state} do
+      {:push, _, state} = send_json(state, %{t: "join", token: "abcdefgh1234", name: "A"})
+
+      # innerhalb des Stoßes kommt alles durch (Steuerung wirkt)
+      {state, first} =
+        Enum.reduce(1..60, {state, 0}, fn _, {st, n} ->
+          {:ok, st} = send_json(st, %{t: "input", u: true})
+          {st, n + 1}
+        end)
+
+      assert first == 60 and state.dropped == 0
+
+      # sehr viele Nachrichten ohne Pause: Rest wird verworfen, am Ende wird getrennt
+      result =
+        Enum.reduce_while(1..2_000, state, fn _, st ->
+          case send_json(st, %{t: "input", u: false}) do
+            {:ok, st} -> {:cont, st}
+            {:stop, :normal, 1008, _} -> {:halt, :closed}
+          end
+        end)
+
+      assert result == :closed
+    end
+
+    test "Welt voll: Beitritt wird abgelehnt, mit Fehlermeldung an den Client" do
+      id = "full" <> Integer.to_string(System.unique_integer([:positive]))
+      start_supervised!({Osp.World, id: id, seed: 4, max_players: 1}, id: id)
+      {:ok, a} = Socket.init([])
+      {:ok, b} = Socket.init([])
+
+      assert {:push, {:text, _}, %{id: "token-aaaa-1"}} =
+               send_json(%{a | world: id}, %{t: "join", token: "token-aaaa-1", name: "A"})
+
+      assert {:push, {:text, json}, %{id: nil}} =
+               send_json(%{b | world: id}, %{t: "join", token: "token-bbbb-2", name: "B"})
+
+      assert %{"t" => "error", "reason" => "full"} = Jason.decode!(json)
+
+      # Wiederverbinden des ersten Spielers klappt trotzdem
+      assert {:push, {:text, _}, %{id: "token-aaaa-1"}} =
+               send_json(%{a | world: id}, %{t: "join", token: "token-aaaa-1", name: "A"})
     end
 
     test "Schnappschuss wird als JSON-Text weitergereicht", %{state: state} do

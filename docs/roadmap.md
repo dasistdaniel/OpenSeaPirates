@@ -12,8 +12,8 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 | A1 | ✅ erledigt: **Persistenz:** Gold, Bank, Klasse, Upgrades, Munition, Name und Statistik überleben Neustart/Deploy | M–L | Anonymes Token (`osp-token`) ist schon die Identität. Speicher: SQLite (Ecto) oder einfacher eine Datei/DETS je Spieler. Docker-Volume nötig (`docker-compose.yml`). Beim Beitritt laden, bei Änderung/Verlassen/alle 30 s speichern. |
 | A2 | 🟡 teilweise (`./deploy backup`, Sicherung vor jedem Deploy; Git-Remote noch offen): **Backup & Betrieb:** Volume sichern, Logs, Neustart-Verhalten, Git-Remote (Forgejo läuft auf dem Server, Port 3000) | S–M | Repo ist nur lokal; jetzt auf Forgejo/GitHub pushen! |
 | A3 | **Spieltest mit Freunden + Balancing:** Jäger-Stärke, Preise, Einkommen pro Minute, Tempo | M (laufend) | Alle Zahlen stehen in `ships.ex`, `shop.ex`, `combat.ex`, `state.ex`, `director.ex`. Gold-Rate messen (Logs). |
-| A4 | **Missbrauchsschutz:** Raten-Limit für Eingaben und `fire`, Name-Duplikate, Chat gibt es noch nicht | S–M | Chunk-Anfragen sind schon begrenzt, Eingaben nicht. |
-| A5 | **Credits und Hilfe:** Kenney-Lizenz im Footer, kurzer Hilfe-Dialog (Tasten, Ziel), Lautstärke-Einstellung | S | `priv/static/index.html`, Lizenz liegt in `priv/static/images/`. |
+| A4 | ✅ erledigt (Raten-Limit mit Trennung, Obergrenze 60 Spieler, eindeutige Namen): **Missbrauchsschutz:** Raten-Limit für Eingaben und `fire`, Name-Duplikate, Chat gibt es noch nicht | S–M | Chunk-Anfragen sind schon begrenzt, Eingaben nicht. |
+| A5 | ✅ erledigt (Hilfe mit H, Lautstärke, Credits): **Credits und Hilfe:** Kenney-Lizenz im Footer, kurzer Hilfe-Dialog (Tasten, Ziel), Lautstärke-Einstellung | S | `priv/static/index.html`, Lizenz liegt in `priv/static/images/`. |
 
 ## B. Sollte (macht es rund)
 

@@ -51,6 +51,7 @@ export class Net {
         if (msg.t === "welcome") this.h.onWelcome?.(msg)
         else if (msg.t === "snap") this.h.onSnap?.(msg)
         else if (msg.t === "shop") this.h.onShop?.(msg)
+        else if (msg.t === "error") this.h.onError?.(msg)
       } else {
         const view = new DataView(ev.data)
         if (view.getUint8(0) === 1) {

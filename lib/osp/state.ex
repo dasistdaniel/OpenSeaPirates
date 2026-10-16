@@ -20,6 +20,7 @@ defmodule Osp.State do
   @merchant_speed 0.6
   @hunter_speed 0.9
   @hunter_aggro 28.0
+  @max_name 20
 
   defstruct seed: 0,
             time: 0,
@@ -140,6 +141,8 @@ defmodule Osp.State do
   """
   @spec join(t(), term(), String.t(), map() | nil) :: t()
   def join(state, id, name, profile \\ nil) do
+    name = unique_name(state, id, name)
+
     if Map.has_key?(state.ships, id) do
       update_ship(state, id, &%{&1 | name: name, gone_at: nil})
     else
@@ -148,6 +151,22 @@ defmodule Osp.State do
       ship = %{new_ship(id, name, :player, x, y, heading) | invuln_until: state.time + 2_000}
       ship = if profile, do: Osp.Profile.apply(ship, profile), else: ship
       put_ship(state, id, ship)
+    end
+  end
+
+  @doc "Anzahl Spielerschiffe (ohne NPCs)."
+  def player_count(state), do: Enum.count(state.ships, fn {_, s} -> s.kind == :player end)
+
+  # Gleiche Namen bekommen eine Zahl (\"Anna\", \"Anna 2\", ...), damit man sie unterscheiden kann
+  defp unique_name(state, id, name) do
+    taken = for {other, s} <- state.ships, other != id, s.kind == :player, do: s.name
+    base = String.slice(name, 0, @max_name - 3)
+
+    if name not in taken do
+      name
+    else
+      Enum.find_value(2..99, fn n -> if "#{base} #{n}" not in taken, do: "#{base} #{n}" end) ||
+        name
     end
   end
 

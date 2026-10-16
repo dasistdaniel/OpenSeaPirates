@@ -2,10 +2,10 @@
 // Q/E = Breitseite links/rechts, Leertaste = beide Seiten (gehalten feuert jeweils erneut), M = Ton.
 
 export class Input {
-  constructor({ onKeys, onFire, onMute, onDock, onAmmo }) {
+  constructor({ onKeys, onFire, onMute, onDock, onAmmo, onHelp }) {
     this.keys = { u: false, l: false, r: false }
     this.firing = { left: false, right: false }
-    this.h = { onKeys, onFire, onMute, onDock, onAmmo }
+    this.h = { onKeys, onFire, onMute, onDock, onAmmo, onHelp }
     this.enabled = false
 
     window.addEventListener("keydown", (e) => this.key(e, true))
@@ -57,6 +57,7 @@ export class Input {
 
     if (down && !e.repeat) {
       if (e.code === "KeyF") return void this.h.onDock()
+      if (e.code === "KeyH") return void this.h.onHelp()
       if (e.code === "Escape") return void this.h.onDock(true)
       const ammo = { Digit1: "ball", Digit2: "chain", Digit3: "fire" }[e.code]
       if (ammo) return void this.h.onAmmo(ammo)

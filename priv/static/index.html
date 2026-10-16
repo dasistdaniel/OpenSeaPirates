@@ -19,6 +19,50 @@
 
     <div id="shop" hidden></div>
 
+    <button id="help-btn" type="button" title="Hilfe (H)">?</button>
+
+    <div id="help" hidden>
+      <div class="panel">
+        <header>
+          <div><span class="kicker">Hilfe</span><h2>Open Sea Pirates</h2></div>
+          <button id="help-close" type="button" class="ghost">Schließen (Esc)</button>
+        </header>
+        <div class="cols">
+          <section>
+            <h3>Ziel</h3>
+            <p>Segle durch die unendliche Welt, versenke Piratenjäger und Händler und sammle das
+              <b>Gold</b> ein, das sie fallen lassen. In <b>Häfen</b> kaufst du Schiffe, Ausrüstung
+              und Munition, reparierst und lagerst Gold sicher in der <b>Bank</b>.</p>
+            <h3>Tipps</h3>
+            <ul>
+              <li>Der <b>Wind</b> (Kompass oben) macht dich mit Rückenwind bis zu 40 % schneller, gegen den Wind langsamer.</li>
+              <li>Dreh dich so, dass der Gegner <b>seitlich</b> liegt, dann treffen die Breitseiten.</li>
+              <li>Beim Tod verlierst du 30 % des <b>getragenen</b> Golds. Die Bank ist sicher.</li>
+              <li>In der Schutzzone eines Hafens gibt es keinen Schaden und keine Schüsse.</li>
+              <li>Schiffsklasse und Upgrades behältst du dauerhaft.</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Steuerung</h3>
+            <table>
+              <tr><td><kbd>W</kbd> <kbd>A</kbd> <kbd>D</kbd> / Pfeile</td><td>Segel setzen, Ruder links/rechts</td></tr>
+              <tr><td><kbd>Q</kbd> / <kbd>E</kbd></td><td>Breitseite links / rechts</td></tr>
+              <tr><td><kbd>Leertaste</kbd></td><td>beide Seiten feuern</td></tr>
+              <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Kugeln / Kettenkugel / Brandgeschoss</td></tr>
+              <tr><td><kbd>F</kbd></td><td>im Hafen andocken und ablegen</td></tr>
+              <tr><td><kbd>H</kbd></td><td>diese Hilfe</td></tr>
+              <tr><td><kbd>M</kbd></td><td>Ton aus/an</td></tr>
+            </table>
+            <h3>Ton</h3>
+            <label class="vol">Lautstärke <input id="volume" type="range" min="0" max="100" step="5" /></label>
+            <h3>Credits</h3>
+            <p class="small">Grafiken: <a href="https://kenney.nl/assets/pirate-pack" target="_blank" rel="noopener">Pirate Pack</a>
+              von Kenney (CC0). Ton: im Browser erzeugt.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <div id="join">
       <form id="join-form" autocomplete="off">
         <p class="kicker">Offene See</p>
@@ -29,8 +73,9 @@
         <button type="submit" id="join-button">Segel setzen</button>
         <p class="keys">
           <kbd>W</kbd> <kbd>A</kbd> <kbd>D</kbd> fahren · <kbd>Q</kbd> / <kbd>E</kbd> Breitseite links/rechts · <kbd>Leertaste</kbd> beide<br />
-          <kbd>F</kbd> im Hafen andocken · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Munition · <kbd>M</kbd> Ton
+          <kbd>F</kbd> im Hafen andocken · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Munition · <kbd>M</kbd> Ton · <kbd>H</kbd> Hilfe
         </p>
+        <p class="credits">Grafiken: Kenney Pirate Pack (CC0)</p>
       </form>
     </div>
 
