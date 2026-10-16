@@ -6,6 +6,13 @@ const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
 const WE_PER_PX = 1.5 / 113 // Maßstab der Schiffsbilder
 const RELOAD_MS = 1800
 
+// Deterministischer Zufall 0..1 aus zwei ganzen Zahlen (für Wellenkämme)
+function hash2(a, b) {
+  let h = Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296
+}
+
 export class Renderer {
   constructor(canvas, chunks) {
     this.canvas = canvas
@@ -29,7 +36,6 @@ export class Renderer {
       return im
     })
 
-    this.waves = this.makeWavePattern()
     window.addEventListener("resize", () => this.resize())
     this.resize()
   }
@@ -40,26 +46,6 @@ export class Renderer {
     this.canvas.height = Math.round(window.innerHeight * dpr)
     this.dpr = dpr
     this.scale = this.canvas.width / VIEW_WIDTH_WE
-  }
-
-  makeWavePattern() {
-    const size = 192
-    const c = document.createElement("canvas")
-    c.width = c.height = size
-    const g = c.getContext("2d")
-    let seed = 1234567
-    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)
-    g.strokeStyle = "rgba(255,255,255,0.10)"
-    g.lineWidth = 2
-    g.lineCap = "round"
-    for (let i = 0; i < 34; i++) {
-      const x = rnd() * size, y = rnd() * size, w = 10 + rnd() * 16
-      g.beginPath()
-      g.moveTo(x - w, y)
-      g.quadraticCurveTo(x, y - 5, x + w, y)
-      g.stroke()
-    }
-    return this.ctx.createPattern(c, "repeat")
   }
 
   // --- Effekte von außen ------------------------------------------------------------
@@ -129,18 +115,62 @@ export class Renderer {
     }
   }
 
-  // Sanft treibende Wellenlinien über dem Gelände (Tiefenwirkung durch zwei Ebenen)
+  // Wasser: breite Dünungsbänder (hell/dunkel) laufen mit dem Wind, darauf Wellenkämme, die in der
+  // Weltkoordinate verankert sind, aufkommen, mit dem Wind wandern und wieder verschwinden.
   drawWaves(cam, now) {
-    const { ctx, canvas, scale, waves } = this
+    const { ctx, canvas, scale } = this
     const t = now / 1000
-    for (const [k, drift] of [[1.0, 6], [0.6, -4]]) {
-      const ox = -cam.x * scale * 0.5 * k + t * drift * scale * 0.05
-      const oy = -cam.y * scale * 0.5 * k
-      waves.setTransform(new DOMMatrix().translate(ox, oy).scale((scale / 40) * k))
-      ctx.globalAlpha = 0.9
-      ctx.fillStyle = waves
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.globalAlpha = 1
+    const wa = this.windA === undefined ? 0 : this.windA
+    const wx = Math.cos(wa), wy = Math.sin(wa)
+    const W = canvas.width, H = canvas.height
+
+    // Dünung: Bänder quer zur Windrichtung
+    const diag = Math.hypot(W, H) / scale // Bildschirmdiagonale in WE
+    const period = 11
+    const along = cam.x * wx + cam.y * wy - t * 0.7 // wandert mit dem Wind
+    ctx.save()
+    ctx.translate(W / 2, H / 2)
+    ctx.rotate(wa)
+    const first = Math.floor((along - diag / 2) / period) - 1
+    const last = Math.ceil((along + diag / 2) / period) + 1
+    for (let k = first; k <= last; k++) {
+      const x = (k * period - along) * scale
+      const g = ctx.createLinearGradient(x, 0, x + period * scale, 0)
+      g.addColorStop(0, "rgba(255,255,255,0)")
+      g.addColorStop(0.5, "rgba(190,230,255,0.055)")
+      g.addColorStop(1, "rgba(255,255,255,0)")
+      ctx.fillStyle = g
+      ctx.fillRect(x, -diag * scale, period * scale, diag * 2 * scale)
+    }
+    ctx.restore()
+
+    // Wellenkämme: pro Rasterzelle ein Kamm mit eigener Phase
+    const cell = 1.8
+    const halfW = W / 2 / scale + 1, halfH = H / 2 / scale + 1
+    ctx.lineCap = "round"
+    for (let ci = Math.floor((cam.x - halfW) / cell); ci <= Math.floor((cam.x + halfW) / cell); ci++) {
+      for (let cj = Math.floor((cam.y - halfH) / cell); cj <= Math.floor((cam.y + halfH) / cell); cj++) {
+        const h = hash2(ci, cj)
+        if (h < 0.35) continue // nicht jede Zelle hat einen Kamm
+        const h2 = hash2(cj + 91, ci - 17), h3 = hash2(ci * 3 + 5, cj * 7 - 2)
+        const phase = (t * (0.11 + h2 * 0.07) + h3) % 1 // Lebenszyklus 0..1
+        const alpha = Math.sin(phase * PI) ** 2 * 0.3
+        if (alpha < 0.01) continue
+        const drift = phase * 1.4 - 0.7
+        const px = (ci + h2) * cell + wx * drift
+        const py = (cj + h3) * cell + wy * drift
+        const len = 0.35 + h * 0.5
+        const sx = this.sx(px, cam), sy = this.sy(py, cam)
+        // Kamm quer zur Windrichtung, in der Mitte zum Wind hin gewölbt
+        const nx = -wy, ny = wx
+        const half = len * scale
+        ctx.beginPath()
+        ctx.moveTo(sx - nx * half, sy - ny * half)
+        ctx.quadraticCurveTo(sx + wx * 0.22 * scale, sy + wy * 0.22 * scale, sx + nx * half, sy + ny * half)
+        ctx.strokeStyle = `rgba(235,247,255,${alpha})`
+        ctx.lineWidth = Math.max(1.5, 0.045 * scale)
+        ctx.stroke()
+      }
     }
   }
 
@@ -220,6 +250,11 @@ export class Renderer {
     ctx.translate(cx, cy)
     if (s.iv && Math.floor(now / 120) % 2) ctx.globalAlpha = 0.45
     ctx.rotate(s.h - PI / 2) // Sprite: Bug zeigt nach unten (+90°)
+    // leichtes Schaukeln auf der Dünung, je Schiff versetzt
+    const ph = (typeof s.i === "number" ? s.i : String(s.i).length) * 1.7
+    ctx.rotate(Math.sin(now / 780 + ph) * 0.03)
+    const bob = 1 + Math.sin(now / 1100 + ph) * 0.012
+    ctx.scale(bob, bob)
     if (im.complete && im.naturalWidth) {
       const sail = { reefed: 0.8, full: 1, studding: 1.14 }[s.sa] || 1
       const w = im.naturalWidth * WE_PER_PX * scale * sail, h = im.naturalHeight * WE_PER_PX * scale

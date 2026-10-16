@@ -38,8 +38,10 @@ const net = new Net({
     for (const ev of msg.ev || []) handleEvent(ev)
   },
   onShop(msg) {
+    const was = docked
     docked = shop.update(msg)
     if (docked) input.releaseAll()
+    if (docked !== was) sound.play("bell", 0.7)
   },
   onError(msg) {
     const texts = { full: "Die Welt ist voll. Versuch es später noch einmal." }
@@ -70,6 +72,7 @@ const input = new Input({
   onSail: (mode) => {
     const now = snaps.latest && snaps.latest.me && snaps.latest.me.sa
     net.send({ t: "sail", mode: now === mode ? "full" : mode })
+    sound.play("sail", 0.8)
   },
   // F: andocken oder ablegen; Esc (nur ablegen)
   onDock: (onlyUndock) => {
@@ -104,6 +107,7 @@ function handleEvent(ev) {
     sound.play("kill", 1)
   } else if (kind === "splash") {
     renderer.effect({ t: "ring", x: ev[1], y: ev[2], life: 400 })
+    sound.play("splash", 0.5)
   } else if (kind === "loot") {
     const [, id, gold, x, y] = ev
     renderer.effect({ t: "text", x, y, life: 1100, text: "+" + gold + " Gold", color: "#fbbf24" })
@@ -137,12 +141,15 @@ $("join-form").addEventListener("submit", (e) => {
   e.preventDefault()
   const name = nameInput.value.trim()
   try { localStorage.setItem(NAME_KEY, name) } catch (_) {}
+  sound.start() // Klick auf Beitreten schaltet den Ton frei
   net.connect(name)
   $("join-button").disabled = true
 })
 
 // --- Schleife -----------------------------------------------------------------------
 const LOAD_RADIUS_WE = 48 // Chunks in diesem Umkreis laden (Bildschirm ± Minikarte)
+
+let lastHeading = 0
 
 function frame(now) {
   requestAnimationFrame(frame)
@@ -155,6 +162,9 @@ function frame(now) {
       shop.setColor(me.c)
       chunks.ensureAround(me.x, me.y, LOAD_RADIUS_WE)
       minimap.draw(me, state.ships, now)
+      const dh = Math.abs(Math.atan2(Math.sin(me.h - lastHeading), Math.cos(me.h - lastHeading)))
+      lastHeading = me.h
+      sound.ambient(me.v, Math.cos(me.h - state.w) * 0.4, dh > 0.01 && me.v > 0.3, now)
       posEl.textContent =
         `x ${me.x.toFixed(0)}  y ${me.y.toFixed(0)}  ·  Tempo ${me.v.toFixed(1)}  ·  ` +
         `${state.ships.length - 1} Schiffe in der Nähe`
