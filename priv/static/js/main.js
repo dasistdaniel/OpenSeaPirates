@@ -117,9 +117,6 @@ const LOAD_RADIUS_WE = 48 // Chunks in diesem Umkreis laden (Bildschirm ± Minik
 
 function frame(now) {
   requestAnimationFrame(frame)
-
-// Für Entwicklung und Browser-Tests: Zugriff auf die laufenden Teile
-window.osp = { net, snaps, chunks, renderer, shop }
   const state = snaps.sample(now)
   renderer.draw(state, now)
 

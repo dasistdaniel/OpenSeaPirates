@@ -1,5 +1,5 @@
 // Tastatur: W/A/D bzw. Pfeile als Zustand (u = Segel, l/r = Ruder, nur bei Änderung gesendet),
-// Q/E = Breitseite links/rechts (gehalten feuert erneut), M = Ton.
+// Q/E = Breitseite links/rechts, Leertaste = beide Seiten (gehalten feuert jeweils erneut), M = Ton.
 
 export class Input {
   constructor({ onKeys, onFire, onMute, onDock, onAmmo }) {
@@ -41,6 +41,17 @@ export class Input {
       const side = e.code === "KeyQ" ? "left" : "right"
       this.firing[side] = down
       if (down && !e.repeat) this.h.onFire(side)
+      return
+    }
+
+    if (e.code === "Space") {
+      e.preventDefault() // sonst scrollt die Seite
+      this.firing.left = down
+      this.firing.right = down
+      if (down && !e.repeat) {
+        this.h.onFire("left")
+        this.h.onFire("right")
+      }
       return
     }
 
