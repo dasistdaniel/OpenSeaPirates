@@ -256,9 +256,23 @@ export class Renderer {
     const bob = 1 + Math.sin(now / 1100 + ph) * 0.012
     ctx.scale(bob, bob)
     if (im.complete && im.naturalWidth) {
-      const sail = { reefed: 0.8, full: 1, studding: 1.14 }[s.sa] || 1
-      const w = im.naturalWidth * WE_PER_PX * scale * sail, h = im.naturalHeight * WE_PER_PX * scale
+      const w = im.naturalWidth * WE_PER_PX * scale, h = im.naturalHeight * WE_PER_PX * scale
       ctx.drawImage(im, -w / 2, -h / 2, w, h)
+      // Beisegel: zwei Zusatzsegel links und rechts am Rumpf; Rumpf bleibt unverändert
+      if (s.sa === "studding") {
+        ctx.fillStyle = "rgba(255,250,235,0.92)"
+        ctx.strokeStyle = "rgba(120,100,70,0.8)"
+        ctx.lineWidth = Math.max(1, 0.025 * scale)
+        for (const side of [-1, 1]) {
+          ctx.beginPath()
+          ctx.moveTo(side * w * 0.42, -h * 0.12)
+          ctx.lineTo(side * w * 0.95, -h * 0.02)
+          ctx.lineTo(side * w * 0.42, h * 0.12)
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+        }
+      }
     } else {
       ctx.fillStyle = "#ccc"
       ctx.fillRect(-0.3 * scale, -0.7 * scale, 0.6 * scale, 1.4 * scale)
