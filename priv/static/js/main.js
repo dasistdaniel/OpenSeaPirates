@@ -23,6 +23,7 @@ const players = { list: [] } // alle Spieler [Kennung, Name, Farbe, x, y, Absch�
 const names = new Map() // id -> Name (für Meldungen, auch von Schiffen außer Sicht)
 let joined = false
 let worldSeed = null
+let sailSent = null
 let myId = null
 let docked = false
 
@@ -77,10 +78,15 @@ const input = new Input({
   onMute: () => sound.toggle(),
   onAmmo: (kind) => net.send({ t: "ammo", kind }),
   onHelp: () => toggleHelp(),
-  // R/B schalten zwischen der Stufe und vollen Segeln um
-  onSail: (mode) => {
-    const now = snaps.latest && snaps.latest.me && snaps.latest.me.sa
-    net.send({ t: "sail", mode: now === mode ? "full" : mode })
+  // S schaltet die Segelstufe weiter: voll → Beisegel → gerafft → voll. Schnelles Mehrfachdrücken
+  // zählt weiter, auch wenn der Server die neue Stufe noch nicht gemeldet hat.
+  onSail: () => {
+    const order = ["full", "studding", "reefed"]
+    const shown = snaps.latest && snaps.latest.me && snaps.latest.me.sa
+    const cur = sailSent && performance.now() - sailSent.at < 400 ? sailSent.mode : shown
+    const next = order[(order.indexOf(cur) + 1) % order.length]
+    sailSent = { mode: next, at: performance.now() }
+    net.send({ t: "sail", mode: next })
     sound.play("sail", 0.8)
   },
   // F: andocken oder ablegen; Esc (nur ablegen)

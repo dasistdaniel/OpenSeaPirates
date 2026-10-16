@@ -117,7 +117,7 @@ defmodule Osp.Ships do
 
   def max_level, do: 3
 
-  # Segelstufen (Taste R / B): Tempo- und Wendigkeitsfaktor je Stufe
+  # Segelstufen (Taste S): Tempo- und Wendigkeitsfaktor je Stufe
   #   gerafft  – kleineres Segel: langsamer, dafür wendiger
   #   voll     – Normalzustand
   #   beisegel – Zusatzsegel: schneller, dafür träger beim Drehen
