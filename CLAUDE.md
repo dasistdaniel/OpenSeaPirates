@@ -11,8 +11,9 @@
 - Client ohne Build (ES-Module in `priv/static/js`). Eingaben als Tastenzustand senden. Namen aus dem
   Netz nur per `textContent` einsetzen, nie als HTML.
 - Nationen und Gebiete: `Osp.Nations` (rein); die Heimatnation steht im Profil und in `ship.nation`,
-  Boni rechnet `Osp.Ships.stats/1` ein. Geplanter Ausbau (Ruf, Quests, Eroberung) mit Plan unter
-  `docs/superpowers/specs` und `docs/superpowers/plans`.
+  Boni rechnet `Osp.Ships.stats/1` ein. Ruf: `Osp.Reputation`; ob ein Schiff in einer Hafen-Schutzzone geschützt ist, entscheidet
+  `State.safe_for?/2` (nicht `Ports.safe?/3`). Geplanter Ausbau (Quests, Eroberung) mit Entwurf und
+  Plänen unter `docs/superpowers/specs` und `docs/superpowers/plans`.
 - **Nie das Spieler-Token an Clients schicken:** nach außen immer `Osp.State.public_id/1`.
 - Richtungen: Kurs im Bogenmaß, Bildschirmkoordinaten (y nach unten), rechts = Kurs + 90°;
   Kenney-Schiffe zeigen mit dem Bug nach unten (Sprite-Rotation = Kurs − 90°).

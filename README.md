@@ -14,8 +14,12 @@ dieses Repos.
 - **Welt:** unendlich, Chunks aus einem Seed, Wind (dreht alle 30 s), Minikarte, Zoom (Mausrad) und
   Wegpunkte (Mausklick).
 - **Nationen:** fünf Nationen mit Gebieten (aus Seed und Häfen), Flagge vor dem Namen, Wahl der
-  Heimatnation beim ersten Beitritt mit kleinem Bonus, Start im Heimatgebiet. Ruf, Quests und
-  Eroberung sind geplant: `docs/superpowers/specs/2026-10-17-nationen-ruf-quests-design.md`.
+  Heimatnation beim ersten Beitritt mit kleinem Bonus, Start im Heimatgebiet.
+- **Ruf:** je Nation −100..+100; Abschüsse von Händlern und Jägern senken ihn (Notwehr gegen
+  angreifende Jäger nicht). Jäger greifen ab Ruf −10 an. Bei Gesucht (≤ −40) sperrt der Hafen Shop und
+  Bank (nur Wiedergutmachung gegen Gold), die Schutzzone entfällt, das Fort schießt und zwei Jäger
+  kommen. Quests und Eroberung sind geplant:
+  `docs/superpowers/specs/2026-10-17-nationen-ruf-quests-design.md`.
 - **Segeln:** WASD, drei Segelstufen (Taste S: voll, Beisegel, gerafft), Kurven kosten Fahrt.
 - **Kampf:** Breitseiten Q/E (beide Seiten: Leertaste), lange Ladezeit, Längsfeuer zählt doppelt,
   Sondermunition (Kettenkugel, Brandgeschoss, Tasten 1–3).
@@ -53,7 +57,7 @@ Es gibt lokal kein Elixir; `./mx` synchronisiert den Quellordner auf den Server 
 und führt `mix` in einem Docker-Container aus.
 
 ```bash
-./mx test               # Tests (151)
+./mx test               # Tests (226)
 ./mx precommit          # Kompilieren (Warnungen = Fehler), Format, Tests; vor jedem Commit
 ./mx deps.update bandit # beliebige mix-Aufgaben, hier ein Abhängigkeits-Update (mix.lock kommt zurück)
 ./mx run scripts/load_test.exs    # Lasttest ohne Netzwerk (Takt-Zeit je Spielerzahl), siehe docs/performance.md
@@ -90,6 +94,8 @@ lib/osp/terrain.ex      Höhenfeld (Seed → Welt), Chunks für den Client
 lib/osp/sailing.ex      Schiffsphysik: Tempo, Wenden (kostet Fahrt), Wind, Kollision (rein)
 lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
 lib/osp/nations.ex      Nationen, Gebiete (Zelle + nächster Hafen), Boni (rein)
+lib/osp/reputation.ex   Ruf je Nation: Stufen, Änderungen, Rückgang (rein)
+lib/osp/fort.ex         Forts der Häfen: Warnung, Schüsse mit Vorhalt, Alarm (rein)
 lib/osp/wander.ex       Wander-Bot, Ausweichkurs, Befreien festgefahrener NPCs (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Längsfeuer, Treffer, Tod, Beute (rein)
 lib/osp/state.ex        Reiner Weltzustand, Zeitschritt, NPC-Steuerung, Schnappschüsse, öffentliche IDs
