@@ -10,7 +10,7 @@ defmodule Osp.Web.Socket do
     * `{"t":"chunk","cx":int,"cy":int}` – Geländeblock anfordern
     * `{"t":"fire","side":"left"|"right"}` – Breitseite (Q = links, E = rechts)
     * `{"t":"dock"}` / `{"t":"undock"}` – im Hafen andocken (F) / ablegen
-    * `{"t":"buy","what":"class"|"upgrade"|"ammo"|"repair","id":"..."}` – im Hafen kaufen
+    * `{"t":"buy","what":"class"|"upgrade"|"ammo"|"repair"|"atone","id":"..."}` – im Hafen kaufen
     * `{"t":"bank","op":"deposit"|"withdraw","amount":int|"all"}` – Gold einlagern/abheben
     * `{"t":"ammo","kind":"ball"|"chain"|"fire"}` – Munition wählen (1/2/3)
     * `{"t":"sail","mode":"reefed"|"full"|"studding"}` – Segelstufe (R raffen, B Beisegel)
@@ -267,6 +267,7 @@ defmodule Osp.Web.Socket do
   defp buy_action("upgrade", s), do: if(@slots[s], do: {:upgrade, @slots[s]})
   defp buy_action("ammo", k) when k in ["chain", "fire"], do: {:ammo, @ammo[k]}
   defp buy_action("repair", _), do: :repair
+  defp buy_action("atone", _), do: :atone
   defp buy_action(_, _), do: nil
 
   defp valid_token?(token),

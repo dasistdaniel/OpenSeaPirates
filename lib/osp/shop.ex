@@ -7,7 +7,7 @@ defmodule Osp.Shop do
   Munitionslager voll), `:amount` (ungültiger Betrag), `:no_bank_gold`.
   """
 
-  alias Osp.Ships
+  alias Osp.{Nations, Reputation, Ships}
 
   @ammo %{
     chain: %{
@@ -148,12 +148,35 @@ defmodule Osp.Shop do
 
   # --- Anzeige -------------------------------------------------------------------------
 
-  @doc "Alles, was die Hafen-Oberfläche braucht (JSON-fähig)."
-  def view(ship, port_name) do
+  @doc """
+  Sperr-Ansicht für einen Spieler, der bei der Nation des Hafens Gesucht ist: nichts wird verkauft,
+  angeboten ist nur die Wiedergutmachung (`Osp.Reputation.atone_cost/0`, `atone_gain/0`).
+  """
+  def hostile_view(ship, port_name, nation) do
+    %{
+      t: "shop",
+      open: true,
+      hostile: true,
+      port: port_name,
+      nation: Atom.to_string(nation),
+      rep: Reputation.get(ship.rep, nation),
+      reps: reps(ship),
+      atone: %{cost: Reputation.atone_cost(), gain: Reputation.atone_gain()},
+      gold: ship.gold
+    }
+  end
+
+  # Ruf bei allen Nationen in der Reihenfolge von `Osp.Nations.all/0`
+  defp reps(ship), do: for(n <- Nations.all(), do: Reputation.get(ship.rep, n))
+
+  @doc "Alles, was die Hafen-Oberfläche braucht (JSON-fähig); `nation` ist die des Hafens."
+  def view(ship, port_name, nation \\ nil) do
     %{
       t: "shop",
       open: true,
       port: port_name,
+      nation: if(nation, do: Atom.to_string(nation), else: ""),
+      reps: reps(ship),
       gold: ship.gold,
       bank: ship.bank,
       class: Atom.to_string(ship.class),

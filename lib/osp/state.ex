@@ -356,7 +356,8 @@ defmodule Osp.State do
     with %{alive?: true, kind: :player, docked: nil} = s <- state.ships[id],
          %{} = port <- Ports.dockable(state.seed, s.x, s.y) || {:error, :no_port},
          true <- s.speed < 0.7 or {:error, :too_fast} do
-      ship = %{s | docked: %{id: port.id, name: port.name}, speed: 0.0, input: idle()}
+      dock = %{id: port.id, name: port.name, nation: Nations.of_port(state.seed, port)}
+      ship = %{s | docked: dock, speed: 0.0, input: idle()}
       {put_ship(state, id, ship), :ok}
     else
       %{docked: %{}} -> {state, {:error, :docked}}
@@ -379,21 +380,14 @@ defmodule Osp.State do
   """
   def shop(state, id, action) do
     case state.ships[id] do
-      %{docked: %{name: port}, alive?: true} = ship ->
-        result =
-          case action do
-            {:class, c} -> Shop.buy_class(ship, c)
-            {:upgrade, slot} -> Shop.buy_upgrade(ship, slot)
-            {:ammo, kind} -> Shop.buy_ammo(ship, kind)
-            :repair -> Shop.repair(ship)
-            {:deposit, n} -> Shop.deposit(ship, n)
-            {:withdraw, n} -> Shop.withdraw(ship, n)
-            _ -> {:error, :unknown}
-          end
+      %{docked: %{name: port} = dock, alive?: true} = ship ->
+        nation = Map.get(dock, :nation)
+        hostile? = hostile_to?(ship, nation)
 
-        case result do
-          {:ok, ship} -> {put_ship(state, id, ship), {:ok, Shop.view(ship, port)}}
-          {:error, reason} -> {state, {:error, reason}}
+        cond do
+          action == :atone -> atone(state, id, ship, port, nation, hostile?)
+          hostile? -> {state, {:error, :hostile}}
+          true -> trade(state, id, ship, port, nation, action)
         end
 
       _ ->
@@ -401,10 +395,74 @@ defmodule Osp.State do
     end
   end
 
+  defp trade(state, id, ship, port, nation, action) do
+    result =
+      case action do
+        {:class, c} -> Shop.buy_class(ship, c)
+        {:upgrade, slot} -> Shop.buy_upgrade(ship, slot)
+        {:ammo, kind} -> Shop.buy_ammo(ship, kind)
+        :repair -> Shop.repair(ship)
+        {:deposit, n} -> Shop.deposit(ship, n)
+        {:withdraw, n} -> Shop.withdraw(ship, n)
+        _ -> {:error, :unknown}
+      end
+
+    case result do
+      {:ok, ship} -> {put_ship(state, id, ship), {:ok, Shop.view(ship, port, nation)}}
+      {:error, reason} -> {state, {:error, reason}}
+    end
+  end
+
+  # Wiedergutmachung (bis zu den Quests): nur bei Gesucht, gegen Gold, +Ruf bei der Hafen-Nation
+  defp atone(state, _id, _ship, _port, _nation, false), do: {state, {:error, :not_wanted}}
+
+  defp atone(state, id, ship, port, nation, true) do
+    cost = Reputation.atone_cost()
+
+    if ship.gold < cost do
+      {state, {:error, :no_gold}}
+    else
+      state = put_ship(state, id, %{ship | gold: ship.gold - cost})
+      {state, _events} = add_rep(state, id, nation, Reputation.atone_gain())
+      {state, {:ok, view_for(state.ships[id], port, nation)}}
+    end
+  end
+
+  # Gesucht bei der Nation: Sperr-Ansicht, sonst die normale
+  defp view_for(ship, port, nation) do
+    if hostile_to?(ship, nation),
+      do: Shop.hostile_view(ship, port, nation),
+      else: Shop.view(ship, port, nation)
+  end
+
+  # Ist dieser Spieler bei dieser Nation Gesucht? (nur Spieler; NPCs nie)
+  defp hostile_to?(%{kind: :player} = ship, nation) when nation != nil,
+    do: Reputation.standing(rep_of(ship, nation)) == :wanted
+
+  defp hostile_to?(_ship, _nation), do: false
+
+  @doc """
+  Schützt die Schutzzone eines Hafens dieses Schiff an `(x, y)`? Ja, wenn ein Hafen in Reichweite
+  liegt, dessen Nation das Schiff nicht als Gesuchten führt. Ohne Schiff (z. B. Fort-Kugel) nie.
+  """
+  @spec safe_at?(t(), number(), number(), map() | nil) :: boolean()
+  def safe_at?(_state, _x, _y, nil), do: false
+
+  def safe_at?(state, x, y, ship) do
+    state.seed
+    |> Ports.near(x, y, Ports.safe_radius())
+    |> Enum.any?(fn port -> not hostile_to?(ship, Nations.of_port(state.seed, port)) end)
+  end
+
+  @doc "Wie `safe_at?/4` an der Position des Schiffs selbst."
+  @spec safe_for?(t(), map() | nil) :: boolean()
+  def safe_for?(_state, nil), do: false
+  def safe_for?(state, ship), do: safe_at?(state, ship.x, ship.y, ship)
+
   @doc "Aktuelle Hafen-Ansicht des Spielers oder `nil`."
   def shop_view(state, id) do
     case state.ships[id] do
-      %{docked: %{name: port}} = ship -> Shop.view(ship, port)
+      %{docked: %{name: port} = dock} = ship -> view_for(ship, port, Map.get(dock, :nation))
       _ -> nil
     end
   end

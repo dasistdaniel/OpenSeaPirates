@@ -182,7 +182,8 @@ defmodule Osp.HarborTest do
 
     {st, p} = at_port()
     {st, :ok} = State.dock(st, "a")
-    assert st.ships["a"].docked == %{id: p.id, name: p.name}
+    assert %{id: id, name: name, nation: nation} = st.ships["a"].docked
+    assert id == p.id and name == p.name and nation == Osp.Nations.of_port(st.seed, p)
     assert {_, {:error, :docked}} = State.dock(st, "a")
 
     st = State.set_input(st, "a", %{up?: true})

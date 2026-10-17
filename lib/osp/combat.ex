@@ -52,7 +52,7 @@ defmodule Osp.Combat do
 
         cond do
           Map.fetch!(s, key) > 0 -> {state, []}
-          Ports.safe?(state.seed, s.x, s.y) -> {state, []}
+          State.safe_for?(state, s) -> {state, []}
           true -> shoot(state, s, side, key)
         end
 
@@ -172,7 +172,7 @@ defmodule Osp.Combat do
           Terrain.land?(st.seed, ball.x, ball.y) ->
             {keep, st, [{:splash, ball.x, ball.y} | ev]}
 
-          Ports.safe?(st.seed, ball.x, ball.y) ->
+          zone_stops?(st, ball) ->
             {keep, st, ev}
 
           true ->
@@ -203,6 +203,17 @@ defmodule Osp.Combat do
         @rake_cos
   end
 
+  # Schutzzone: Kugeln geschützter Schiffe verschwinden; Kugeln von Gesuchten (dort ungeschützt) und
+  # Fort-Kugeln nicht; ist der Schütze schon weg, gilt die Zone wie bisher
+  defp zone_stops?(_state, %{owner_kind: :fort}), do: false
+
+  defp zone_stops?(state, ball) do
+    case state.ships[ball.owner] do
+      nil -> Ports.safe?(state.seed, ball.x, ball.y)
+      owner -> State.safe_at?(state, ball.x, ball.y, owner)
+    end
+  end
+
   defp hit_ship(state, ball) do
     Enum.find_value(state.ships, fn {id, s} ->
       r = s.radius + ball.r
@@ -221,7 +232,7 @@ defmodule Osp.Combat do
     s = state.ships[victim_id]
 
     if s == nil or not s.alive? or s.invuln_until > state.time or
-         Ports.safe?(state.seed, s.x, s.y) do
+         State.safe_for?(state, s) do
       {state, []}
     else
       lost = min(amount, s.hp)
@@ -297,7 +308,7 @@ defmodule Osp.Combat do
         s == nil or s.burn_until <= st.time ->
           {st, ev}
 
-        Ports.safe?(st.seed, s.x, s.y) ->
+        State.safe_for?(st, s) ->
           {State.put_ship(st, id, %{s | burn_until: 0}), ev}
 
         st.time >= s.burn_next ->
