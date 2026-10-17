@@ -535,7 +535,10 @@ defmodule Osp.State do
         %{alive?: true, kind: :hunter} = ship ->
           ship = unstick(ship, solid?)
 
-          case nearest_player(acc, ship, @hunter_aggro) do
+          # Jäger greifen nur Spieler an, die bei ihrer Nation mindestens Misstrauisch sind
+          hostile? = fn p -> Reputation.hunts?(rep_of(p, ship.nation)) end
+
+          case nearest_player(acc, ship, @hunter_aggro, hostile?) do
             nil ->
               {keys, [], target, rng} =
                 Hunter.think(ship, nil, acc.targets[id], solid?, acc.rng, nil)
@@ -625,11 +628,13 @@ defmodule Osp.State do
     end)
   end
 
-  # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit)
-  defp nearest_player(state, ship, radius) do
+  # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit), den `wanted?` zulässt
+  defp nearest_player(state, ship, radius, wanted? \\ fn _ -> true end) do
     state.ships
     |> Map.values()
-    |> Enum.filter(&(&1.kind == :player and &1.alive? and &1.invuln_until <= state.time))
+    |> Enum.filter(
+      &(&1.kind == :player and &1.alive? and &1.invuln_until <= state.time and wanted?.(&1))
+    )
     |> Enum.map(&{:math.sqrt(:math.pow(&1.x - ship.x, 2) + :math.pow(&1.y - ship.y, 2)), &1})
     |> Enum.filter(fn {d, _} -> d <= radius end)
     |> Enum.min_by(fn {d, _} -> d end, fn -> nil end)

@@ -8,7 +8,7 @@ defmodule Osp.Director do
   still. Kopfgeld und Verhalten gehören zu den Schiffen selbst, siehe `Osp.State.add_npc/7`.
   """
 
-  alias Osp.{Spawn, State}
+  alias Osp.{Reputation, Spawn, State}
 
   @every_ms 2_000
   @near 60.0
@@ -49,10 +49,21 @@ defmodule Osp.Director do
 
     cond do
       merchants < @want_merchants -> spawn_one(state, human, :merchant)
-      hunters < @want_hunters -> spawn_hunters(state, human)
+      hunters < want_hunters(human) -> spawn_hunters(state, human)
       true -> state
     end
   end
+
+  @doc """
+  Wie viele Jäger um einen Spieler sollen es sein? Einer; **zwei**, wenn er bei der Nation des
+  Gebiets, in dem er gerade fährt (`ship.terr`), Gesucht ist.
+  """
+  @spec want_hunters(map()) :: pos_integer()
+  def want_hunters(%{terr: terr} = human) when terr != nil do
+    if Reputation.standing(State.rep_of(human, terr)) == :wanted, do: @want_hunters + 1, else: @want_hunters
+  end
+
+  def want_hunters(_human), do: @want_hunters
 
   defp spawn_hunters(state, human) do
     {r, rng} = :rand.uniform_s(state.rng)

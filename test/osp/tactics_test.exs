@@ -151,7 +151,9 @@ defmodule Osp.TacticsTest do
   test "im Spiel: Jäger fahren Läufe (wechseln Phasen) statt dauerhaft in einer zu bleiben" do
     {bx, by} = open_water()
     st = State.new(@seed, 0) |> State.join("a", "Anna")
-    st = State.update_ship(st, "a", &%{&1 | x: bx, y: by, invuln_until: 0, heading: 0.0})
+    # Misstrauisch bei allen Nationen: Jäger greifen an
+    rep = Map.new(Osp.Nations.all(), &{&1, -20})
+    st = State.update_ship(st, "a", &%{&1 | x: bx, y: by, invuln_until: 0, heading: 0.0, rep: rep})
     st = State.add_npc(st, :hunter, "Jäger", bx + 7.0, by + 1.0, @pi)
 
     {_st, phases} =

@@ -208,7 +208,10 @@ defmodule Osp.CombatTest do
       s
       |> State.update_ship("npc-1", &%{&1 | x: bx, y: by, heading: 0.0, kind: :hunter})
       |> State.update_ship("npc-2", &%{&1 | x: bx, y: by + 2.0, heading: 0.0})
-      |> State.update_ship("a", &%{&1 | x: bx + 8.0, y: by + 8.0, invuln_until: 0})
+      |> State.update_ship("a", fn p ->
+        # bei allen Nationen Misstrauisch oder schlechter: Jäger greifen an
+        %{p | x: bx + 8.0, y: by + 8.0, invuln_until: 0, rep: Map.new(Osp.Nations.all(), &{&1, -20})}
+      end)
 
     {s, _} = Combat.fire(s, "npc-1", :right)
     {s, _} = run(s, 800)
@@ -276,7 +279,13 @@ defmodule Osp.CombatTest do
   test "Piratenjäger greifen Spieler an und schießen" do
     {bx, by} = open_water()
     s = State.join(State.new(@seed, 0), "a", "Anna")
-    s = State.update_ship(s, "a", &%{&1 | x: bx, y: by, invuln_until: 0, heading: 0.0})
+    s =
+      State.update_ship(s, "a", fn p ->
+        # bei allen Nationen Misstrauisch oder schlechter: Jäger greifen an
+        rep = Map.new(Osp.Nations.all(), &{&1, -20})
+        %{p | x: bx, y: by, invuln_until: 0, heading: 0.0, rep: rep}
+      end)
+
     s = State.add_npc(s, :hunter, "Jäger", bx + 7.0, by + 1.0, :math.pi())
 
     {s, ev} = run(s, 20_000)
