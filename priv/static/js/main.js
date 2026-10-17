@@ -8,6 +8,7 @@ import { Snapshots } from "./snapshots.js"
 import { Minimap } from "./minimap.js"
 import { Sound } from "./audio.js"
 import { SPRITE_COLORS } from "./minimap.js"
+import { Waypoints } from "./waypoints.js"
 import { Shop } from "./shop.js"
 
 const NAME_KEY = "osp-name"
@@ -97,6 +98,32 @@ const input = new Input({
 })
 const renderer = new Renderer($("game"), chunks)
 const minimap = new Minimap($("minimap"), chunks)
+const waypoints = new Waypoints()
+renderer.waypoints = waypoints
+
+// Mausrad zoomt; Linksklick setzt einen Wegpunkt (Klick auf einen vorhandenen entfernt ihn),
+// Rechtsklick entfernt den nächsten
+const gameCanvas = $("game")
+gameCanvas.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault()
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY
+    renderer.zoomBy(Math.pow(1.0015, dy))
+  },
+  { passive: false },
+)
+gameCanvas.addEventListener("click", (e) => {
+  if (!joined || docked) return
+  const p = renderer.worldAt(e.clientX, e.clientY)
+  if (!p) return
+  if (!waypoints.removeNear(p.x, p.y, renderer.view.cur * 0.035)) waypoints.add(p.x, p.y)
+})
+gameCanvas.addEventListener("contextmenu", (e) => {
+  e.preventDefault()
+  const p = renderer.worldAt(e.clientX, e.clientY)
+  if (joined && p) waypoints.removeNear(p.x, p.y)
+})
 const shop = new Shop($("shop"), net)
 
 // Holzsplitter und Wrackteile: fliegen auseinander, treiben aus und versinken
@@ -224,7 +251,8 @@ function frame(now) {
     if (me) {
       shop.setColor(me.c)
       chunks.ensureAround(me.x, me.y, LOAD_RADIUS_WE)
-      minimap.draw(me, state.ships, now, players.list)
+      if (waypoints.reach(me)) sound.play("coin", 0.5)
+      minimap.draw(me, state.ships, now, players.list, waypoints.list)
       renderer.players = players.list
       if (now - lastBoard > 250) {
         lastBoard = now

@@ -4,7 +4,10 @@ const PI = Math.PI
 import { SPRITE_COLORS as PLAYER_COLORS } from "./minimap.js"
 
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
-const VIEW_WIDTH_WE = 26 // so viele Welteinheiten sind horizontal sichtbar
+const VIEW_WIDTH_WE = 26 // Standard: so viele Welteinheiten sind horizontal sichtbar
+const VIEW_MIN = 12 // Zoom: kleinste und größte sichtbare Breite (der Server schickt ~45 WE Umkreis)
+const VIEW_MAX = 44
+const ZOOM_KEY = "osp-zoom"
 const WE_PER_PX = 1.5 / 113 // Maßstab der Schiffsbilder
 const RELOAD_MS = 3000
 
@@ -15,12 +18,21 @@ function hash2(a, b) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
+function loadZoom() {
+  try {
+    const v = parseFloat(localStorage.getItem(ZOOM_KEY))
+    if (v >= VIEW_MIN && v <= VIEW_MAX) return v
+  } catch (_) {}
+  return VIEW_WIDTH_WE
+}
+
 export class Renderer {
   constructor(canvas, chunks) {
     this.canvas = canvas
     this.ctx = canvas.getContext("2d")
     this.chunks = chunks
     this.scale = 40
+    this.view = { cur: loadZoom(), target: loadZoom() } // sichtbare Breite in WE, weich nachgeführt
     this.parts = [] // Effekte: Kielwasser, Explosionen, Zahlen, Splash
     this.feed = [] // Abschuss-Meldungen
     this.lastWake = new Map()
@@ -48,7 +60,7 @@ export class Renderer {
     this.canvas.width = Math.round(window.innerWidth * dpr)
     this.canvas.height = Math.round(window.innerHeight * dpr)
     this.dpr = dpr
-    this.scale = this.canvas.width / VIEW_WIDTH_WE
+    this.scale = this.canvas.width / this.view.cur
   }
 
   // --- Effekte von außen ------------------------------------------------------------
@@ -62,6 +74,23 @@ export class Renderer {
     if (this.feed.length > 5) this.feed.shift()
   }
 
+  // Mausrad: `factor` > 1 zoomt heraus (mehr Welt sichtbar), < 1 hinein
+  zoomBy(factor) {
+    this.view.target = Math.min(Math.max(this.view.target * factor, VIEW_MIN), VIEW_MAX)
+    try { localStorage.setItem(ZOOM_KEY, String(this.view.target)) } catch (_) {}
+  }
+
+  // Bildschirmpunkt (CSS-Pixel, z. B. clientX/Y) → Weltpunkt um die letzte Kamera; null ohne Kamera
+  worldAt(clientX, clientY) {
+    const cam = this.lastCam
+    if (!cam) return null
+    const { canvas, scale, dpr } = this
+    return {
+      x: cam.x + (clientX * dpr - canvas.width / 2) / scale,
+      y: cam.y + (clientY * dpr - canvas.height / 2) / scale,
+    }
+  }
+
   // Weltpunkt → Bildschirm (Geräte-Pixel)
   sx(x, cam) { return (x - cam.x) * this.scale + this.canvas.width / 2 }
   sy(y, cam) { return (y - cam.y) * this.scale + this.canvas.height / 2 }
@@ -70,6 +99,12 @@ export class Renderer {
     const { ctx, canvas } = this
     const W = canvas.width, H = canvas.height
     this.chunks.builtThisFrame = 0
+
+    // Zoom weich nachführen
+    if (Math.abs(this.view.target - this.view.cur) > 0.01) {
+      this.view.cur += (this.view.target - this.view.cur) * 0.2
+      this.scale = W / this.view.cur
+    }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.fillStyle = "#093860"
@@ -94,6 +129,7 @@ export class Renderer {
     if (me && me.a) this.drawShip(me, cam, true, now)
     this.drawBalls(state, cam)
     this.drawParts(now, cam)
+    this.drawWaypoints(me, cam, now)
     this.drawPlayerPointers(state, me, cam)
     this.drawCompass(state, me)
     this.drawHud(state, me, now)
@@ -112,31 +148,87 @@ export class Renderer {
       const x = s ? s.x : px, y = s ? s.y : py
       const sx = this.sx(x, cam), sy = this.sy(y, cam)
       if (sx > inset && sx < W - inset && sy > inset && sy < H - inset) continue
-      const dx = sx - W / 2, dy = sy - H / 2
-      const f = Math.min((W / 2 - inset) / Math.max(Math.abs(dx), 1), (H / 2 - inset) / Math.max(Math.abs(dy), 1))
-      const ax = W / 2 + dx * f, ay = H / 2 + dy * f
-      ctx.save()
-      ctx.translate(ax, ay)
-      ctx.rotate(Math.atan2(dy, dx))
-      ctx.beginPath()
-      ctx.moveTo(13 * dpr, 0); ctx.lineTo(-8 * dpr, -9 * dpr); ctx.lineTo(-8 * dpr, 9 * dpr); ctx.closePath()
-      ctx.fillStyle = PLAYER_COLORS[color % PLAYER_COLORS.length]
-      ctx.fill()
-      ctx.strokeStyle = "rgba(0,0,0,0.7)"
-      ctx.lineWidth = 2 * dpr
-      ctx.stroke()
-      ctx.restore()
-      const label = `${name} · ${Math.round(Math.hypot(x - me.x, y - me.y))}`
-      ctx.font = `700 ${Math.round(12 * dpr)}px sans-serif`
-      ctx.textAlign = dx > 0 ? "right" : "left"
-      ctx.textBaseline = "middle"
-      const tx = ax + (dx > 0 ? -18 : 18) * dpr
-      ctx.strokeStyle = "rgba(0,0,0,0.7)"
-      ctx.lineWidth = 3 * dpr
-      ctx.strokeText(label, tx, ay)
-      ctx.fillStyle = "#f1f5f9"
-      ctx.fillText(label, tx, ay)
+      this.edgeArrow(sx, sy, PLAYER_COLORS[color % PLAYER_COLORS.length], `${name} · ${Math.round(Math.hypot(x - me.x, y - me.y))}`)
     }
+  }
+
+  // Pfeil am Bildrand in Richtung des Bildschirmpunkts (sx, sy) mit Beschriftung
+  edgeArrow(sx, sy, fill, label) {
+    const { ctx, canvas, dpr } = this
+    const W = canvas.width, H = canvas.height
+    const inset = 46 * dpr
+    const dx = sx - W / 2, dy = sy - H / 2
+    const f = Math.min((W / 2 - inset) / Math.max(Math.abs(dx), 1), (H / 2 - inset) / Math.max(Math.abs(dy), 1))
+    const ax = W / 2 + dx * f, ay = H / 2 + dy * f
+    ctx.save()
+    ctx.translate(ax, ay)
+    ctx.rotate(Math.atan2(dy, dx))
+    ctx.beginPath()
+    ctx.moveTo(13 * dpr, 0); ctx.lineTo(-8 * dpr, -9 * dpr); ctx.lineTo(-8 * dpr, 9 * dpr); ctx.closePath()
+    ctx.fillStyle = fill
+    ctx.fill()
+    ctx.strokeStyle = "rgba(0,0,0,0.7)"
+    ctx.lineWidth = 2 * dpr
+    ctx.stroke()
+    ctx.restore()
+    ctx.font = `700 ${Math.round(12 * dpr)}px sans-serif`
+    ctx.textAlign = dx > 0 ? "right" : "left"
+    ctx.textBaseline = "middle"
+    const tx = ax + (dx > 0 ? -18 : 18) * dpr
+    ctx.strokeStyle = "rgba(0,0,0,0.7)"
+    ctx.lineWidth = 3 * dpr
+    ctx.strokeText(label, tx, ay)
+    ctx.fillStyle = "#f1f5f9"
+    ctx.fillText(label, tx, ay)
+  }
+
+  // Wegpunkte: Raute mit Ring auf dem Bild, sonst Pfeil am Rand; zum nächsten führt eine gestrichelte Linie
+  drawWaypoints(me, cam, now) {
+    if (!me || !this.waypoints) return
+    const { ctx, canvas, scale, dpr } = this
+    const W = canvas.width, H = canvas.height
+    const inset = 46 * dpr
+    const mx = this.sx(me.x, cam), my = this.sy(me.y, cam)
+    this.waypoints.list.forEach((w, i) => {
+      const sx = this.sx(w.x, cam), sy = this.sy(w.y, cam)
+      const dist = Math.round(Math.hypot(w.x - me.x, w.y - me.y))
+      if (i === 0) {
+        ctx.save()
+        ctx.setLineDash([10 * dpr, 12 * dpr])
+        ctx.lineDashOffset = -now / 40
+        ctx.beginPath()
+        ctx.moveTo(mx, my)
+        ctx.lineTo(sx, sy)
+        ctx.strokeStyle = "rgba(251,191,36,0.4)"
+        ctx.lineWidth = 2 * dpr
+        ctx.stroke()
+        ctx.restore()
+      }
+      if (sx > inset && sx < W - inset && sy > inset && sy < H - inset) {
+        const pulse = 0.5 + 0.5 * Math.sin(now / 300)
+        ctx.beginPath()
+        ctx.arc(sx, sy, (0.35 + pulse * 0.15) * scale, 0, 2 * PI)
+        ctx.strokeStyle = `rgba(251,191,36,${0.35 + pulse * 0.3})`
+        ctx.lineWidth = 2 * dpr
+        ctx.stroke()
+        const r = 0.16 * scale
+        ctx.beginPath()
+        ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r, sy); ctx.closePath()
+        ctx.fillStyle = "#fbbf24"
+        ctx.fill()
+        ctx.strokeStyle = "rgba(0,0,0,0.7)"
+        ctx.stroke()
+        ctx.font = `700 ${Math.round(12 * dpr)}px sans-serif`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "top"
+        ctx.lineWidth = 3 * dpr
+        ctx.strokeText(String(dist), sx, sy + 0.5 * scale)
+        ctx.fillStyle = "#fde68a"
+        ctx.fillText(String(dist), sx, sy + 0.5 * scale)
+      } else {
+        this.edgeArrow(sx, sy, "#fbbf24", `Ziel · ${dist}`)
+      }
+    })
   }
 
   drawChunks(cam) {

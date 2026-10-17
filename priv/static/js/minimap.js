@@ -14,7 +14,7 @@ export class Minimap {
     this.last = 0
   }
 
-  draw(me, ships, now, players = []) {
+  draw(me, ships, now, players = [], waypoints = []) {
     if (!me) return
     const { ctx, canvas, tmp, cells, chunks } = this
     const land = chunks.land
@@ -73,6 +73,30 @@ export class Minimap {
       ctx.beginPath()
       ctx.moveTo(6, 0); ctx.lineTo(-4, -4.5); ctx.lineTo(-4, 4.5); ctx.closePath()
       ctx.fillStyle = SPRITE_COLORS[p[2] % SPRITE_COLORS.length]
+      ctx.fill()
+      ctx.strokeStyle = "#000"
+      ctx.lineWidth = 1
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // Wegpunkte: goldene Raute, außerhalb der Karte als Pfeil am Rand
+    for (const w of waypoints) {
+      const dx = w.x - me.x, dy = w.y - me.y
+      const m = Math.max(Math.abs(dx), Math.abs(dy), 0.001)
+      const f = Math.min(1, (RANGE - 3) / m)
+      const px = half + dx * f * k, py = half + dy * f * k
+      ctx.save()
+      ctx.translate(px, py)
+      if (f < 1) {
+        ctx.rotate(Math.atan2(dy, dx))
+        ctx.beginPath()
+        ctx.moveTo(6, 0); ctx.lineTo(-4, -4.5); ctx.lineTo(-4, 4.5); ctx.closePath()
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.lineTo(-5, 0); ctx.closePath()
+      }
+      ctx.fillStyle = "#fbbf24"
       ctx.fill()
       ctx.strokeStyle = "#000"
       ctx.lineWidth = 1
