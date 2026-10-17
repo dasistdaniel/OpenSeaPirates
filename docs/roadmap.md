@@ -29,7 +29,7 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 
 ## C. Kann (Ausbau, wenn Zeit bleibt)
 
-Bestenliste über Sitzungen (Rekorde) · Mine und weitere Sondermunition (B4) · Entern von Schiffen ·
+Nationen: Baustein 1 erledigt; Ruf, Quests, Eroberung als nächste Bausteine laut Entwurf · Bestenliste über Sitzungen (Rekorde) · Mine und weitere Sondermunition (B4) · Entern von Schiffen ·
 Sprite für gerafftes Segel pro Klasse (bisher nur Segelgröße) · Handel mit Waren zwischen Häfen ·
 Ruf/Kopfgeld · Schiffs-Kosmetik (Flagge, Segelzeichen) · Crew und Offiziere · Wetter/Stürme ·
 Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sounds.
@@ -48,7 +48,7 @@ Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sound
 ## D. Übergabe (damit es ohne Claude weiterläuft)
 
 - Alles Wichtige steht in `README.md`, `CLAUDE.md`, `docs/handout.md`, `docs/decisions.md`, `docs/upgrades.md`.
-- Tests laufen mit `./mx test` (118 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
+- Tests laufen mit `./mx test` (151 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
 - Spiellogik ist in reinen Modulen (`state.ex`, `combat.ex`, `shop.ex`, ...) mit Tests; wer Elixir kann, findet
   sich schnell zurecht. Konstanten stehen oben in den Modulen.
 - Elixir-Grundlagen für Änderungen: die Module sind klein und kommentiert; Client ist reines JavaScript ohne Build.

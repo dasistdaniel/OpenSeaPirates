@@ -10,6 +10,9 @@
   Segelstufen), `shop.ex` (Preise), `director.ex` (NPC-Dichte), `state.ex` (NPC-Werte).
 - Client ohne Build (ES-Module in `priv/static/js`). Eingaben als Tastenzustand senden. Namen aus dem
   Netz nur per `textContent` einsetzen, nie als HTML.
+- Nationen und Gebiete: `Osp.Nations` (rein); die Heimatnation steht im Profil und in `ship.nation`,
+  Boni rechnet `Osp.Ships.stats/1` ein. Geplanter Ausbau (Ruf, Quests, Eroberung) mit Plan unter
+  `docs/superpowers/specs` und `docs/superpowers/plans`.
 - **Nie das Spieler-Token an Clients schicken:** nach außen immer `Osp.State.public_id/1`.
 - Richtungen: Kurs im Bogenmaß, Bildschirmkoordinaten (y nach unten), rechts = Kurs + 90°;
   Kenney-Schiffe zeigen mit dem Bug nach unten (Sprite-Rotation = Kurs − 90°).

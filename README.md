@@ -13,6 +13,9 @@ dieses Repos.
 
 - **Welt:** unendlich, Chunks aus einem Seed, Wind (dreht alle 30 s), Minikarte, Zoom (Mausrad) und
   Wegpunkte (Mausklick).
+- **Nationen:** fünf Nationen mit Gebieten (aus Seed und Häfen), Flagge vor dem Namen, Wahl der
+  Heimatnation beim ersten Beitritt mit kleinem Bonus, Start im Heimatgebiet. Ruf, Quests und
+  Eroberung sind geplant: `docs/superpowers/specs/2026-10-17-nationen-ruf-quests-design.md`.
 - **Segeln:** WASD, drei Segelstufen (Taste S: voll, Beisegel, gerafft), Kurven kosten Fahrt.
 - **Kampf:** Breitseiten Q/E (beide Seiten: Leertaste), lange Ladezeit, Längsfeuer zählt doppelt,
   Sondermunition (Kettenkugel, Brandgeschoss, Tasten 1–3).
@@ -50,7 +53,7 @@ Es gibt lokal kein Elixir; `./mx` synchronisiert den Quellordner auf den Server 
 und führt `mix` in einem Docker-Container aus.
 
 ```bash
-./mx test               # Tests (118)
+./mx test               # Tests (151)
 ./mx precommit          # Kompilieren (Warnungen = Fehler), Format, Tests; vor jedem Commit
 ./mx deps.update bandit # beliebige mix-Aufgaben, hier ein Abhängigkeits-Update (mix.lock kommt zurück)
 ./mx run scripts/load_test.exs    # Lasttest ohne Netzwerk (Takt-Zeit je Spielerzahl), siehe docs/performance.md
@@ -59,6 +62,8 @@ und führt `mix` in einem Docker-Container aus.
                         # (OSP_SEED=12 ./mx serve: feste Welt; scripts/find_seed.exs findet Seeds mit nahem Hafen)
 ./mx logs | ./mx stop   # Log folgen (Strg+C beendet nur das Log) / Dev-Server stoppen
 ```
+
+Flaggen neu erzeugen: `python scripts/nation_flags.py priv/static/images/flags`.
 
 Schiffsbilder neu erzeugen (aus dem Kenney Pirate Pack): `python scripts/ship_sprites.py <pack.zip> priv/static/images/ships`
 (pro Klasse und Farbe drei Bilder: voll, `_reefed`, `_studding`; Segelgrößen in `SAIL_SCALE`).
@@ -84,6 +89,7 @@ verschoben und `profiles.json.bak` geladen.
 lib/osp/terrain.ex      Höhenfeld (Seed → Welt), Chunks für den Client
 lib/osp/sailing.ex      Schiffsphysik: Tempo, Wenden (kostet Fahrt), Wind, Kollision (rein)
 lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
+lib/osp/nations.ex      Nationen, Gebiete (Zelle + nächster Hafen), Boni (rein)
 lib/osp/wander.ex       Wander-Bot, Ausweichkurs, Befreien festgefahrener NPCs (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Längsfeuer, Treffer, Tod, Beute (rein)
 lib/osp/state.ex        Reiner Weltzustand, Zeitschritt, NPC-Steuerung, Schnappschüsse, öffentliche IDs
@@ -98,7 +104,7 @@ lib/osp/port_cache.ex   ETS-Cache dafür
 lib/osp/world.ex        Welt-Prozess (Hülle um State): 20 Hz, Schnappschüsse mit Umkreis (AOI), Autosave
 lib/osp/web/            HTTP (Bandit/Plug) und WebSocket-Protokoll (socket.ex beschreibt alle Nachrichten)
 priv/static/js/         Client: main (Verdrahtung), net, chunks, snapshots, render, minimap, input,
-                        audio, shop, waypoints
+                        audio, shop, waypoints, nations
 scripts/                Lasttest, Gelände-Statistik, Seed-Suche, Schiffsbilder
 test/osp/               ExUnit-Tests der reinen Module und des Protokolls
 ```
