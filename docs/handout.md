@@ -5,6 +5,10 @@
 > Prototyp "Pirate Battle". Es ist so geschrieben, dass man es einem neuen Projekt (oder einer KI) direkt
 > als Auftrag geben kann.
 
+> **Stand:** Das Spiel ist nach diesem Handout gebaut (M1–M6 weitgehend umgesetzt). Wo sich Regeln
+> geändert haben, gilt `docs/decisions.md` (u. a. Segelstufen, Gefechtsfluss, Zoom/Wegpunkte,
+> Powerups verworfen). Dieses Dokument bleibt die Ausgangsidee.
+
 ---
 
 ## 1. Vision in drei Sätzen
@@ -44,9 +48,14 @@ Ruf (siehe Ausbaustufen).
 | `A` / `D` (`←` / `→`) | Ruder links / rechts |
 | `Q` | Breitseite links (Backbord) |
 | `E` | Breitseite rechts (Steuerbord) |
+| `Leertaste` | beide Seiten feuern |
+| `1` `2` `3` | Munition: Kugeln / Kettenkugel / Brandgeschoss |
+| `S` | Segelstufe weiter (voll → Beisegel → gerafft) |
 | `F` | im Hafen andocken / Shop öffnen |
-| `M` | Ton an/aus |
-| `Tab` (gehalten) | große Karte / Rangliste |
+| Mausrad, Klick | Zoom, Wegpunkte setzen/entfernen |
+| `H`, `M` | Hilfe, Ton an/aus |
+
+(Die große Karte mit `Tab` wurde nicht gebaut; die Online-Liste zeigt Spieler mit Richtung.)
 
 Eingabe wird **als Tastenzustand** an den Server gesendet (nicht als einzelne Ereignisse), Q/E/F als
 Ereignisse. Beim Fenster-Blur alle Tasten freigeben.
@@ -63,7 +72,7 @@ Alle Maße in **Welteinheiten (WE)**; 1 WE ≈ Kantenlänge eines Geländefelds.
 | Höchsttempo (Basis, ohne Wind) | 2,0 WE/s | Wind: 2,8 mit, 1,2 gegen den Wind; M1-Spieltest: 1,4 war zu langsam |
 | Beschleunigung | 1,5 WE/s² | |
 | Auslaufen ohne Segel | 0,7 WE/s² | |
-| Wenden | 1,4 rad/s | bei Stillstand 45 % davon (Ruderwirkung braucht Fahrt) |
+| Wenden | 1,4 rad/s | bei Stillstand 45 % davon (Ruderwirkung braucht Fahrt); Ruderlegen kostet Fahrt (`@turn_drag` 1,2) |
 | Wind | 6 Richtungen, dreht alle 30 s um 60° (oder stufenlos) | |
 | Windeinfluss auf Höchsttempo | `1 + 0,4·cos(Kurs − Windrichtung)` | Rückenwind +40 %, Gegenwind −40 % |
 | Aufprall Fels/Riff | bremst auf 35 %; ab Tempo > 0,9 WE/s 0,5 Schaden (Pause 0,7 s) | |
@@ -82,15 +91,15 @@ nach unten → Rotation = Kurs − 90°) mit Tests absichern.
 - Je Seite eigener Nachladetimer (**3,0 s**, Kugelschaden 1,5; Treffer von vorn/hinten zählen doppelt), Taste `Q`/`E`.
 - Eine Salve = **3 Kugeln** nebeneinander am Rumpf, senkrecht zum Kurs; Kugel übernimmt 80 % der
   Schiffsgeschwindigkeit in Fahrtrichtung.
-- Kugel: Tempo 6 WE/s, Lebensdauer 0,75 s (**Reichweite ≈ 4,5 WE**), Schaden 1, Trefferradius 0,08 WE.
+- Kugel: Tempo 6 WE/s, Lebensdauer 0,75 s (**Reichweite ≈ 4,5 WE**), Schaden 1,5 (Sondermunition 0,75 bzw. 0,9), Trefferradius 0,08 WE.
 - Kugeln stoppen an Inseln (Splash-Effekt), nicht an Riffen.
 - Kein Friendly Fire im Team-Modus (falls es Crews gibt).
-- Optional (später): **Längsfeuer-Bonus** (+1 Schaden, wenn man das Heck eines Gegners trifft).
+- **Längsfeuer** (umgesetzt): Treffer von Bug oder Heck (Kugel fliegt entlang der Schiffsachse) machen doppelten Schaden.
 
 ### 5.2 Schiffswerte
 - Rumpf (HP): 12 (Startschiff)
 - Respawn bei Tod an zufälligem sicheren Punkt (siehe §8), **2 s Schonzeit**.
-- Treffer-Feedback: Explosion, Zahlen, Rauch bei niedriger HP; drei Sprite-Zustände (heil / beschädigt / schwer).
+- Treffer-Feedback: Explosion, Zahlen, Splitter, Rauch unter 50 % HP (schwarz unter 25 %), Wrackteile beim Untergang.
 
 ### 5.3 Powerups – verworfen
 Schwimmende Powerups (Torpedo, Boost, Schild, ...) wurden in M2 ausprobiert und wieder entfernt, weil sie

@@ -1,4 +1,4 @@
-# Roadmap bis "fertig" (Stand nach M4)
+# Roadmap bis "fertig" (Stand: Spieltest mit Freunden verlief gut)
 
 **Ziel:** Ein Spiel, das du mit Freunden dauerhaft online betreiben kannst – ohne dass bei jedem Deploy
 alles verloren geht, ohne dass es unter Last bricht, und das du ohne KI-Hilfe weiterpflegen kannst.
@@ -11,7 +11,7 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 |---|---|---|---|
 | A1 | ✅ erledigt: **Persistenz:** Gold, Bank, Klasse, Upgrades, Munition, Name und Statistik überleben Neustart/Deploy | M–L | Anonymes Token (`osp-token`) ist schon die Identität. Speicher: SQLite (Ecto) oder einfacher eine Datei/DETS je Spieler. Docker-Volume nötig (`docker-compose.yml`). Beim Beitritt laden, bei Änderung/Verlassen/alle 30 s speichern. |
 | A2 | ✅ erledigt (`./deploy backup`, Sicherung vor jedem Deploy, Repo auf Forgejo `daniel/OpenSeaPirates`): **Backup & Betrieb:** Volume sichern, Logs, Neustart-Verhalten, Git-Remote (Forgejo läuft auf dem Server, Port 3000) | S–M | Repo ist nur lokal; jetzt auf Forgejo/GitHub pushen! |
-| A3 | **Spieltest mit Freunden + Balancing:** Jäger-Stärke, Preise, Einkommen pro Minute, Tempo | M (laufend) | Alle Zahlen stehen in `ships.ex`, `shop.ex`, `combat.ex`, `state.ex`, `director.ex`. Gold-Rate messen (Logs). |
+| A3 | ✅ erster Spieltest gut, Balancing ok (laufend nachjustieren): **Spieltest mit Freunden + Balancing:** Jäger-Stärke, Preise, Einkommen pro Minute, Tempo | M (laufend) | Alle Zahlen stehen in `ships.ex`, `shop.ex`, `combat.ex`, `state.ex`, `director.ex`. Gold-Rate messen (Logs). |
 | A4 | ✅ erledigt (Raten-Limit mit Trennung, Obergrenze 60 Spieler, eindeutige Namen): **Missbrauchsschutz:** Raten-Limit für Eingaben und `fire`, Name-Duplikate, Chat gibt es noch nicht | S–M | Chunk-Anfragen sind schon begrenzt, Eingaben nicht. |
 | A5 | ✅ erledigt (Hilfe mit H, Lautstärke, Credits): **Credits und Hilfe:** Kenney-Lizenz im Footer, kurzer Hilfe-Dialog (Tasten, Ziel), Lautstärke-Einstellung | S | `priv/static/index.html`, Lizenz liegt in `priv/static/images/`. |
 
@@ -29,21 +29,34 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 
 ## C. Kann (Ausbau, wenn Zeit bleibt)
 
-Handel mit Waren zwischen Häfen · Ruf/Kopfgeld · Schiffs-Kosmetik (Flagge, Segelzeichen) · Crew und Offiziere ·
-Wetter/Stürme · Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sounds.
+Bestenliste über Sitzungen (Rekorde) · Mine und weitere Sondermunition (B4) · Entern von Schiffen ·
+Sprite für gerafftes Segel pro Klasse (bisher nur Segelgröße) · Handel mit Waren zwischen Häfen ·
+Ruf/Kopfgeld · Schiffs-Kosmetik (Flagge, Segelzeichen) · Crew und Offiziere · Wetter/Stürme ·
+Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sounds.
 (Ideen ausführlich in `docs/upgrades.md`.)
+
+## Betrieb und Wartung
+
+- **Backups:** `./deploy backup` läuft vor jedem Deploy automatisch. Ein täglicher Cronjob auf dem Server
+  (`./deploy backup` bzw. `cp` von `profiles.json`) fehlt noch.
+- **Abhängigkeiten:** `./mx test` zeigt Sicherheitshinweise zu Hex-Paketen an; `./mx deps.update <paket>`
+  aktualisiert (zuletzt bandit 1.13.1, thousand_island 1.6.0).
+- **Director-Dichte:** Wie viele NPCs um die Spieler sind, im Spiel gelegentlich prüfen (`director.ex`).
+- **Forgejo:** Das Repo liegt auf `http://192.168.178.20:3000/daniel/OpenSeaPirates`; `git push` im Ordner
+  `OpenSeaPirates` ausführen (nicht im Ordner des alten Projekts).
 
 ## D. Übergabe (damit es ohne Claude weiterläuft)
 
 - Alles Wichtige steht in `README.md`, `CLAUDE.md`, `docs/handout.md`, `docs/decisions.md`, `docs/upgrades.md`.
-- Tests laufen mit `./mx test` (106 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
+- Tests laufen mit `./mx test` (118 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
 - Spiellogik ist in reinen Modulen (`state.ex`, `combat.ex`, `shop.ex`, ...) mit Tests; wer Elixir kann, findet
   sich schnell zurecht. Konstanten stehen oben in den Modulen.
 - Elixir-Grundlagen für Änderungen: die Module sind klein und kommentiert; Client ist reines JavaScript ohne Build.
 
-## Vorgeschlagene Reihenfolge (30 Tage)
+## Nächste Schritte (Vorschlag)
 
-1. **Woche 1:** A1 (Persistenz), A2 (Git-Remote und Backup), A5 (Credits/Hilfe), A4 (Raten-Limit).
-2. **Woche 2:** A3 (Spieltest mit Freunden, Balancing), B7 (Stabilität), B6, B5.
-3. **Woche 3:** B1 (Leistung/Last), B2 (Rangliste), B3 (Händler wehren sich), B4 (Mine).
-4. **Woche 4:** Feinschliff nach Spieltests, Teile aus C, Doku auf den neuesten Stand.
+1. Weiter mit Freunden spielen, Auffälligkeiten sammeln, Zahlen in `combat.ex`, `sailing.ex`, `ships.ex`,
+   `shop.ex`, `director.ex` nachjustieren.
+2. Täglichen Backup-Cronjob einrichten (siehe Betrieb und Wartung).
+3. Danach Ausbau aus Abschnitt C, was am meisten Spaß bringt (Mine/Sondermunition, Bestenliste, Entern).
+4. Nach jeder Änderung: `./mx precommit`, committen, `./deploy`, `git push`, diese Doku mitpflegen.
