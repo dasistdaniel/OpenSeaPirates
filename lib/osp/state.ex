@@ -54,11 +54,20 @@ defmodule Osp.State do
             wind_at: @wind_every_ms,
             rng: nil,
             forts: %{},
+            # Eroberte Häfen: Besitzer (Hafen-ID => Nation) und Zeitpunkt (Wanduhr ms) der Eroberung;
+            # `wall_ms` setzt die Hülle (`Osp.World`) je Takt
+            owners: %{},
+            captured_at: %{},
+            wall_ms: 0,
             next_id: 1
 
   @type t :: %__MODULE__{}
 
   def aoi, do: @aoi
+
+  @doc "Nation eines Hafens im Spielzustand: der Besitzer nach einer Eroberung, sonst die Ausgangsnation."
+  @spec port_nation(t(), map()) :: atom()
+  def port_nation(state, port), do: Nations.of_port(state.seed, port, state.owners)
 
   @doc """
   Öffentliche Kennung eines Schiffs für alle Nachrichten an Clients. Spieler-IDs sind geheime Tokens
@@ -80,11 +89,15 @@ defmodule Osp.State do
     rng = :rand.seed_s(:exsss, seed)
     {dir, rng} = :rand.uniform_s(6, rng)
 
+    territory = Keyword.get(opts, :territory, %{})
+
     state = %__MODULE__{
       seed: seed,
       rng: rng,
       wind: dir - 1,
-      director?: Keyword.get(opts, :director?, false)
+      director?: Keyword.get(opts, :director?, false),
+      owners: Map.new(territory, fn {id, %{owner: owner}} -> {id, owner} end),
+      captured_at: Map.new(territory, fn {id, %{since: since}} -> {id, since} end)
     }
 
     Enum.reduce(1..merchants//1, state, fn n, st ->
@@ -284,7 +297,8 @@ defmodule Osp.State do
     max_radius = Keyword.get(opts, :max_radius, 1500.0)
 
     with true <- nation != nil,
-         %{} = port <- Nations.nearest_port_of(state.seed, nation, reference, max_radius),
+         %{} = port <-
+           Nations.nearest_port_of(state.seed, nation, reference, max_radius, state.owners),
          {_, _, _, _} = spot <-
            Spawn.pick_around(state.seed, others, {port.x, port.y}, 6.0, 18.0, rng) do
       spot
@@ -324,7 +338,7 @@ defmodule Osp.State do
     ship = %{
       new_ship(id, name, kind, x, y, heading)
       | bounty: bounty,
-        nation: nation || Nations.at(state.seed, x, y)
+        nation: nation || Nations.at(state.seed, x, y, state.owners)
     }
 
     %{
@@ -361,7 +375,7 @@ defmodule Osp.State do
     with %{alive?: true, kind: :player, docked: nil} = s <- state.ships[id],
          %{} = port <- Ports.dockable(state.seed, s.x, s.y) || {:error, :no_port},
          true <- s.speed < 0.7 or {:error, :too_fast} do
-      dock = %{id: port.id, name: port.name, nation: Nations.of_port(state.seed, port)}
+      dock = %{id: port.id, name: port.name, nation: port_nation(state, port)}
       ship = %{s | docked: dock, speed: 0.0, input: idle()}
       {put_ship(state, id, ship), :ok}
     else
@@ -442,10 +456,15 @@ defmodule Osp.State do
         window = Quests.window(state.time)
 
         %{
-          offers: for(o <- Quests.offers(state.seed, port, window), do: offer_view(o)),
+          offers:
+            for(o <- Quests.offers(state.seed, port, window, state.owners), do: offer_view(o)),
           atone:
             if(wanted?,
-              do: for(o <- Quests.atonement_offers(state.seed, port, window), do: offer_view(o)),
+              do:
+                for(
+                  o <- Quests.atonement_offers(state.seed, port, window, state.owners),
+                  do: offer_view(o)
+                ),
               else: []
             ),
           active: Enum.map(ship.quests, &quest_view/1)
@@ -480,7 +499,7 @@ defmodule Osp.State do
          %{} = port <- Ports.by_id(state.seed, port_id),
          wanted? = hostile_to?(ship, Map.get(dock, :nation)),
          window = Quests.window(state.time),
-         {:ok, offer} <- find_offer(state.seed, port, window, offer_id, wanted?),
+         {:ok, offer} <- find_offer(state, port, window, offer_id, wanted?),
          :ok <- check_accept(ship, offer, wanted?) do
       ship = %{ship | quests: ship.quests ++ [Quests.to_quest(offer)]}
       state = put_ship(state, id, ship)
@@ -492,13 +511,15 @@ defmodule Osp.State do
   end
 
   # Angebot suchen; ein Wiedergutmachungsangebot ohne Gesucht-Status meldet :not_wanted statt :unknown_offer
-  defp find_offer(seed, port, window, offer_id, wanted?) do
-    case Quests.find_offer(seed, port, window, offer_id, wanted?) do
+  defp find_offer(state, port, window, offer_id, wanted?) do
+    %{seed: seed, owners: owners} = state
+
+    case Quests.find_offer(seed, port, window, offer_id, wanted?, owners) do
       {:ok, offer} ->
         {:ok, offer}
 
       :error ->
-        case Quests.find_offer(seed, port, window, offer_id, true) do
+        case Quests.find_offer(seed, port, window, offer_id, true, owners) do
           {:ok, _} -> {:error, :not_wanted}
           :error -> {:error, :unknown_offer}
         end
@@ -603,7 +624,7 @@ defmodule Osp.State do
   def safe_at?(state, x, y, ship) do
     state.seed
     |> Ports.near(x, y, Ports.safe_radius())
-    |> Enum.any?(fn port -> not hostile_to?(ship, Nations.of_port(state.seed, port)) end)
+    |> Enum.any?(fn port -> not hostile_to?(ship, port_nation(state, port)) end)
   end
 
   @doc "Wie `safe_at?/4` an der Position des Schiffs selbst."
@@ -708,7 +729,7 @@ defmodule Osp.State do
     ships =
       Map.new(state.ships, fn
         {id, %{kind: :player, alive?: true} = s} ->
-          {id, %{s | terr: Nations.at(state.seed, s.x, s.y)}}
+          {id, %{s | terr: Nations.at(state.seed, s.x, s.y, state.owners)}}
 
         other ->
           other
@@ -725,7 +746,7 @@ defmodule Osp.State do
     Enum.reduce(state.ships, {state, []}, fn
       {id, %{kind: :player, alive?: true, quests: [_ | _] = quests} = s}, {st, ev} ->
         {kept, expired} = Quests.tick(quests, 500)
-        kept = Enum.map(kept, &quest_info(st.seed, &1, {s.x, s.y}))
+        kept = Enum.map(kept, &quest_info(st, &1, {s.x, s.y}))
         lost = for _ <- expired, do: {:quest_lost, id, :expired, s.x, s.y}
         {put_ship(st, id, %{s | quests: kept}), ev ++ lost}
 
@@ -735,7 +756,7 @@ defmodule Osp.State do
   end
 
   # Anzeigedaten einer Quest (nicht im Profil): Name des Zielhafens und gerundeter Hinweis
-  defp quest_info(seed, quest, pos) do
+  defp quest_info(%{seed: seed, owners: owners}, quest, pos) do
     to_name =
       case quest.to && Ports.by_id(seed, quest.to) do
         %{name: name} -> name
@@ -743,7 +764,7 @@ defmodule Osp.State do
       end
 
     hint =
-      case Quests.hint(seed, quest, pos) do
+      case Quests.hint(seed, quest, pos, owners) do
         nil -> nil
         point -> Quests.round_hint(point)
       end
@@ -951,7 +972,7 @@ defmodule Osp.State do
           balls: for({x, y, e} <- ctx.balls, near?.(x, y), do: e),
           ports:
             for p <- Ports.near(state.seed, me.x, me.y, @aoi) do
-              [p.id, p.x, p.y, p.name, p.land, Atom.to_string(Nations.of_port(state.seed, p))]
+              [p.id, p.x, p.y, p.name, p.land, Atom.to_string(port_nation(state, p))]
             end,
           loot: for({x, y, e} <- ctx.loot, near?.(x, y), do: e),
           me: %{

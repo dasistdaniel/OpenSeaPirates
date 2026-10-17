@@ -36,24 +36,26 @@ defmodule Osp.Quests do
   # --- Angebote --------------------------------------------------------------------------
 
   @doc "Die drei Angebote des Hafens im Zeitfenster (deterministisch)."
-  @spec offers(integer(), map(), non_neg_integer()) :: [offer()]
-  def offers(seed, port, window) do
-    for idx <- 0..2, do: make_offer(seed, port, window, idx, false)
+  @spec offers(integer(), map(), non_neg_integer(), map()) :: [offer()]
+  def offers(seed, port, window, owners \\ %{}) do
+    for idx <- 0..2, do: make_offer(seed, port, window, idx, false, owners)
   end
 
   @doc "Zwei Wiedergutmachungsangebote (Ruf +25, kein Gold); Ziele nur in der Nation des Hafens."
-  @spec atonement_offers(integer(), map(), non_neg_integer()) :: [offer()]
-  def atonement_offers(seed, port, window) do
-    for idx <- 3..4, do: make_offer(seed, port, window, idx, true)
+  @spec atonement_offers(integer(), map(), non_neg_integer(), map()) :: [offer()]
+  def atonement_offers(seed, port, window, owners \\ %{}) do
+    for idx <- 3..4, do: make_offer(seed, port, window, idx, true, owners)
   end
 
   @doc "Sucht ein Angebot per ID (Wiedergutmachung nur, wenn `wanted?`)."
-  @spec find_offer(integer(), map(), non_neg_integer(), term(), boolean()) ::
+  @spec find_offer(integer(), map(), non_neg_integer(), term(), boolean(), map()) ::
           {:ok, offer()} | :error
-  def find_offer(seed, port, window, id, wanted?) when is_binary(id) do
+  def find_offer(seed, port, window, id, wanted?, owners \\ %{})
+
+  def find_offer(seed, port, window, id, wanted?, owners) when is_binary(id) do
     pool =
-      offers(seed, port, window) ++
-        if(wanted?, do: atonement_offers(seed, port, window), else: [])
+      offers(seed, port, window, owners) ++
+        if(wanted?, do: atonement_offers(seed, port, window, owners), else: [])
 
     case Enum.find(pool, &(&1.id == id)) do
       nil -> :error
@@ -61,10 +63,10 @@ defmodule Osp.Quests do
     end
   end
 
-  def find_offer(_seed, _port, _window, _id, _wanted?), do: :error
+  def find_offer(_seed, _port, _window, _id, _wanted?, _owners), do: :error
 
-  defp make_offer(seed, port, window, idx, atone?) do
-    nation = Nations.of_port(seed, port)
+  defp make_offer(seed, port, window, idx, atone?, owners) do
+    nation = Nations.of_port(seed, port, owners)
 
     kind =
       cond do
@@ -80,13 +82,13 @@ defmodule Osp.Quests do
       atone?: atone?
     }
 
-    case kind == :delivery and delivery_target(seed, port, window, idx, nation, atone?) do
+    case kind == :delivery and delivery_target(seed, port, window, idx, nation, atone?, owners) do
       %{} = target -> delivery(base, port, target, atone?)
       _ -> hunt(base, seed, port, window, idx, nation, atone?)
     end
   end
 
-  defp delivery_target(seed, port, window, idx, nation, atone?) do
+  defp delivery_target(seed, port, window, idx, nation, atone?, owners) do
     targets =
       seed
       |> Ports.near(port.x, port.y, @max_dist)
@@ -94,7 +96,7 @@ defmodule Osp.Quests do
         d = distance(port, t)
 
         t.id != port.id and d >= @min_dist and d <= @max_dist and
-          (not atone? or Nations.of_port(seed, t) == nation)
+          (not atone? or Nations.of_port(seed, t, owners) == nation)
       end)
       |> Enum.sort_by(& &1.id)
 
@@ -178,13 +180,16 @@ defmodule Osp.Quests do
   fehlenden Abschüssen → nächster Hafen der Zielnation (bis 400 WE); sonst der Abgabehafen. `nil`, wenn
   es keinen passenden Hafen gibt.
   """
-  @spec hint(integer(), quest(), {number(), number()}) :: {number(), number()} | nil
-  def hint(seed, %{kind: :delivery, to: to}, _pos), do: port_xy(Ports.by_id(seed, to))
+  @spec hint(integer(), quest(), {number(), number()}, map()) :: {number(), number()} | nil
+  def hint(seed, quest, pos, owners \\ %{})
 
-  def hint(seed, %{kind: :hunt, have: have, need: need, target_nation: tn}, pos) when have < need,
-    do: port_xy(Nations.nearest_port_of(seed, tn, pos, 400.0))
+  def hint(seed, %{kind: :delivery, to: to}, _pos, _owners), do: port_xy(Ports.by_id(seed, to))
 
-  def hint(seed, %{from: from}, _pos), do: port_xy(Ports.by_id(seed, from))
+  def hint(seed, %{kind: :hunt, have: have, need: need, target_nation: tn}, pos, owners)
+      when have < need,
+      do: port_xy(Nations.nearest_port_of(seed, tn, pos, 400.0, owners))
+
+  def hint(seed, %{from: from}, _pos, _owners), do: port_xy(Ports.by_id(seed, from))
 
   defp port_xy(nil), do: nil
   defp port_xy(port), do: {port.x, port.y}

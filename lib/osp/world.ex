@@ -15,7 +15,7 @@ defmodule Osp.World do
 
   use GenServer, restart: :temporary
 
-  alias Osp.{Profile, Profiles, State, Terrain}
+  alias Osp.{Profile, Profiles, State, Terrain, Territory}
 
   @registry Osp.WorldRegistry
   @tick_ms 50
@@ -91,7 +91,8 @@ defmodule Osp.World do
       id: Keyword.fetch!(opts, :id),
       sim:
         State.new(seed, Keyword.get(opts, :bots, 0),
-          director?: Keyword.get(opts, :director, false)
+          director?: Keyword.get(opts, :director, false),
+          territory: Territory.all(Keyword.get(opts, :territory, Territory))
         ),
       pids: %{},
       refs: %{},
@@ -220,7 +221,9 @@ defmodule Osp.World do
 
   @impl true
   def handle_info(:tick, state) do
-    {sim, events} = State.tick(state.sim, state.tick_ms)
+    # Wanduhrzeit für Schutzzeit und Rückfall der eroberten Häfen (die Simulation ist selbst rein)
+    sim = %{state.sim | wall_ms: System.os_time(:millisecond)}
+    {sim, events} = State.tick(sim, state.tick_ms)
     state = autosave(state, state.sim, sim)
     state = %{state | sim: sim}
     # Ereignisse aus Eingaben (Feuer, Powerup) gehen mit dem nächsten Takt an alle

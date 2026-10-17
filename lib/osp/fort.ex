@@ -15,7 +15,7 @@ defmodule Osp.Fort do
   Zustand je Hafen in `state.forts` (`%{port_id => %{cooldown_until, seen, shots, alarm_until}}`).
   """
 
-  alias Osp.{Nations, Ports, Reputation, Spawn, State}
+  alias Osp.{Ports, Reputation, Spawn, State}
 
   @range 8.0
   @warn_ms 1_500
@@ -70,7 +70,7 @@ defmodule Osp.Fort do
         p.kind == :player and p.alive? and p.docked == nil,
         wanted_somewhere?(p),
         port <- Ports.near(state.seed, p.x, p.y, @range),
-        Reputation.standing(State.rep_of(p, Nations.of_port(state.seed, port))) == :wanted,
+        Reputation.standing(State.rep_of(p, State.port_nation(state, port))) == :wanted,
         do: {port, p}
   end
 
@@ -190,7 +190,7 @@ defmodule Osp.Fort do
 
   # Zwei Jäger der Nation des Hafens 10–20 WE um den Spieler
   defp alarm(state, port, player) do
-    nation = Nations.of_port(state.seed, port)
+    nation = State.port_nation(state, port)
 
     Enum.reduce(1..@alarm_hunters, state, fn _, st ->
       others = for {_, s} <- st.ships, s.alive?, do: {s.x, s.y}
