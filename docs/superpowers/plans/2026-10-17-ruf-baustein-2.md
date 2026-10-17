@@ -57,7 +57,7 @@ Eingaben und Zustände, die der Entwurf andeutet, aber keine Aufgabe von selbst 
 - Verbraucht: `Osp.Nations.all/0`.
 
 - [ ] **Schritt 1: Failing Tests** in `test/osp/reputation_test.exs`:
-  - `standing/1` an den Grenzen: `-100, -41 → :wanted`? Nein: `-40 → :wanted`, `-41 → :wanted`, `-39 → :suspicious`, `-10 → :suspicious`, `-9 → :neutral`, `0 → :neutral`, `29 → :neutral`, `30 → :friend`, `100 → :friend`.
+  - `standing/1` an den Grenzen: `-100 → :wanted`, `-41 → :wanted`, `-40 → :wanted`, `-39 → :suspicious`, `-10 → :suspicious`, `-9 → :neutral`, `0 → :neutral`, `29 → :neutral`, `30 → :friend`, `100 → :friend`.
   - `add/3` begrenzt: `add(rep, :spain, 500)` ergibt 100, `add(rep, :spain, -500)` ergibt −100; `get/2` einer fehlenden Nation ist 0; andere Nationen bleiben unverändert (keine Verfeindung).
   - `penalty(:merchant) == 8`, `penalty(:hunter) == 5`, `penalty(:player) == 0`.
   - `decay/1`: `%{spain: 20, england: -5, france: 0}` → `%{spain: 19, england: -4, france: 0}`; 0 bleibt 0, springt nie über 0.
@@ -221,7 +221,7 @@ Eingaben und Zustände, die der Entwurf andeutet, aber keine Aufgabe von selbst 
 - [ ] **Schritt 2: Rufmeldung:** Ereignis `["rep", id, nation, delta, value, x, y]` mit `id == myId` zeigt „Ruf <Nation> −8" (Text, wie die Goldmeldung); bei Wechsel in „Misstrauisch" oder „Gesucht" eine einmalige Warnung („Die Jäger Englands suchen dich").
 - [ ] **Schritt 3: Gesperrter Hafen:** `shop.js` zeigt bei `hostile: true` statt der Angebote einen Hinweis („<Nation> verkauft dir nichts mehr") und den Knopf „Wiedergutmachung: 300 🪙 → Ruf +25" (deaktiviert ohne genug Gold); Fehler `hostile`/`no_gold`/`not_wanted` mit deutschen Texten in `ERRORS`. Namen und Texte nur per `textContent`.
 - [ ] **Schritt 4: Fort:** Ereignis `["fort_warn", port_id, player_id, x, y]` für den eigenen Spieler zeigt „Das Fort eröffnet das Feuer" (4 s, rot); im Abschussfeed heißt ein Besitzer, der mit `fort:` beginnt, „Fort".
-- [ ] **Schritt 5: Browser-Prüfung** — mit zwei Spielern (zweiter Spieler per WebSocket-Hilfe im Browser wie bei früheren Prüfungen): Ruf-Anzeige erscheint; ein per Konsole gesetzter schlechter Ruf (`window.osp`-Hilfsmittel nicht nötig: über den Server-Test-Weg, z. B. Händler versenken) zeigt die Warnung und die Sperr-Ansicht im Hafen; Konsole ohne Fehler; `./mx stop`.
+- [ ] **Schritt 5: Browser-Prüfung** mit `./mx serve`: Beitritt, Ruf-Anzeige unter „Gewässer"; einen Händler versenken und die Rufmeldung sehen. Die Sperr-Ansicht und die Fort-Warnung lassen sich ohne Spielzustand prüfen, indem man in der Browser-Konsole Nachrichten nachstellt: `window.osp.shop.update({t: "shop", open: true, hostile: true, port: "Test", nation: "england", rep: -50, atone: {cost: 300, gain: 25}, gold: 400})` zeigt die Sperr-Ansicht. Konsole ohne Fehler; danach `./mx stop`.
 - [ ] **Schritt 6: Commit** — `git commit -am "feat: Ruf, gesperrter Hafen und Fort-Warnung im Client"`.
 
 ---
