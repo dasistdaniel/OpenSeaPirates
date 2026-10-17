@@ -357,7 +357,12 @@ defmodule Osp.Combat do
       end
 
     {state, rep_events} = punish(state, s, killer)
-    {state, [{:kill, killer, id, s.x, s.y}] ++ rep_events}
+    state = State.quest_kill(state, killer, s)
+
+    {state, quest_events} =
+      if s.kind == :player, do: State.fail_deliveries(state, id), else: {state, []}
+
+    {state, [{:kill, killer, id, s.x, s.y}] ++ rep_events ++ quest_events}
   end
 
   # Ruf: Wer ein Schiff einer Nation versenkt, verliert Ruf bei dieser Nation (Händler 8, Jäger 5) –

@@ -57,11 +57,6 @@ defmodule Osp.ReputationTest do
     refute Reputation.hunts?(20)
   end
 
-  test "Wiedergutmachung: Preis und Gewinn" do
-    assert Reputation.atone_cost() == 300
-    assert Reputation.atone_gain() == 25
-  end
-
   test "label/1 deutsch" do
     assert Reputation.label(:wanted) == "Gesucht"
     assert Reputation.label(:suspicious) == "Misstrauisch"

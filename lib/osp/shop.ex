@@ -149,8 +149,8 @@ defmodule Osp.Shop do
   # --- Anzeige -------------------------------------------------------------------------
 
   @doc """
-  Sperr-Ansicht für einen Spieler, der bei der Nation des Hafens Gesucht ist: nichts wird verkauft,
-  angeboten ist nur die Wiedergutmachung (`Osp.Reputation.atone_cost/0`, `atone_gain/0`).
+  Sperr-Ansicht für einen Spieler, der bei der Nation des Hafens Gesucht ist: nichts wird verkauft.
+  Die Wiedergutmachungsquests hängt `Osp.State` als `quests` an.
   """
   def hostile_view(ship, port_name, nation) do
     %{
@@ -161,7 +161,6 @@ defmodule Osp.Shop do
       nation: Atom.to_string(nation),
       rep: Reputation.get(ship.rep, nation),
       reps: reps(ship),
-      atone: %{cost: Reputation.atone_cost(), gain: Reputation.atone_gain()},
       gold: ship.gold
     }
   end

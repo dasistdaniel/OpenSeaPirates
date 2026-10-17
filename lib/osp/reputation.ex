@@ -18,8 +18,6 @@ defmodule Osp.Reputation do
   @suspicious -10
   @friend 30
   @home_start 20
-  @atone_cost 300
-  @atone_gain 25
 
   @type rep :: %{atom() => integer()}
 
@@ -64,12 +62,6 @@ defmodule Osp.Reputation do
   def start(home) do
     Map.new(Nations.all(), fn n -> {n, if(n == home, do: @home_start, else: 0)} end)
   end
-
-  @doc "Preis der Wiedergutmachung (Gold) bis zu den Quests."
-  def atone_cost, do: @atone_cost
-
-  @doc "Rufgewinn der Wiedergutmachung."
-  def atone_gain, do: @atone_gain
 
   defp clamp(v), do: v |> max(@min) |> min(@max)
   defp sign(v) when v > 0, do: 1

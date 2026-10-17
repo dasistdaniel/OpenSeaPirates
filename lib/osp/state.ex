@@ -385,22 +385,20 @@ defmodule Osp.State do
   """
   def shop(state, id, action) do
     case state.ships[id] do
-      %{docked: %{name: port} = dock, alive?: true} = ship ->
+      %{docked: %{} = dock, alive?: true} = ship ->
         nation = Map.get(dock, :nation)
         hostile? = hostile_to?(ship, nation)
 
-        cond do
-          action == :atone -> atone(state, id, ship, port, nation, hostile?)
-          hostile? -> {state, {:error, :hostile}}
-          true -> trade(state, id, ship, port, nation, action)
-        end
+        if hostile?,
+          do: {state, {:error, :hostile}},
+          else: trade(state, id, ship, action)
 
       _ ->
         {state, {:error, :not_docked}}
     end
   end
 
-  defp trade(state, id, ship, port, nation, action) do
+  defp trade(state, id, ship, action) do
     result =
       case action do
         {:class, c} -> Shop.buy_class(ship, c)
@@ -413,31 +411,180 @@ defmodule Osp.State do
       end
 
     case result do
-      {:ok, ship} -> {put_ship(state, id, ship), {:ok, Shop.view(ship, port, nation)}}
-      {:error, reason} -> {state, {:error, reason}}
+      {:ok, ship} ->
+        state = put_ship(state, id, ship)
+        {state, {:ok, view_for(state, state.ships[id])}}
+
+      {:error, reason} ->
+        {state, {:error, reason}}
     end
   end
 
-  # Wiedergutmachung (bis zu den Quests): nur bei Gesucht, gegen Gold, +Ruf bei der Hafen-Nation
-  defp atone(state, _id, _ship, _port, _nation, false), do: {state, {:error, :not_wanted}}
+  # Hafen-Ansicht des angedockten Spielers: bei Gesucht die Sperr-Ansicht, sonst die normale, jeweils
+  # mit den Quests (Angebote des Hafens, aktive, bei Gesucht die Wiedergutmachungsangebote)
+  defp view_for(state, %{docked: %{name: port} = dock} = ship) do
+    nation = Map.get(dock, :nation)
 
-  defp atone(state, id, ship, port, nation, true) do
-    cost = Reputation.atone_cost()
+    base =
+      if hostile_to?(ship, nation),
+        do: Shop.hostile_view(ship, port, nation),
+        else: Shop.view(ship, port, nation)
 
-    if ship.gold < cost do
-      {state, {:error, :no_gold}}
+    Map.put(base, :quests, quests_view(state, ship, hostile_to?(ship, nation)))
+  end
+
+  defp quests_view(state, %{docked: %{id: port_id}} = ship, wanted?) do
+    case Ports.by_id(state.seed, port_id) do
+      nil ->
+        %{offers: [], atone: [], active: Enum.map(ship.quests, &quest_view/1)}
+
+      port ->
+        window = Quests.window(state.time)
+
+        %{
+          offers: for(o <- Quests.offers(state.seed, port, window), do: offer_view(o)),
+          atone:
+            if(wanted?,
+              do: for(o <- Quests.atonement_offers(state.seed, port, window), do: offer_view(o)),
+              else: []
+            ),
+          active: Enum.map(ship.quests, &quest_view/1)
+        }
+    end
+  end
+
+  defp offer_view(o) do
+    %{
+      id: o.id,
+      k: Atom.to_string(o.kind),
+      n: Atom.to_string(o.nation),
+      to: o.to_name,
+      dist: o.dist,
+      tn: o.target_nation && Atom.to_string(o.target_nation),
+      need: o.need,
+      gold: o.gold,
+      rep: o.rep,
+      at: o.atone?
+    }
+  end
+
+  # --- Quests: annehmen, abgeben, aufgeben ------------------------------------------------------
+
+  @doc """
+  Quest aus dem Angebot `offer_id` des angedockten Hafens annehmen. `{state, {:ok, hafen_ansicht}}`
+  oder `{state, {:error, grund}}` mit `:not_docked`, `:unknown_offer`, `:not_wanted` (Wiedergutmachung
+  ohne Gesucht-Status), `:duplicate`, `:full`. Bei Fehlern ändert sich nichts.
+  """
+  def accept_quest(state, id, offer_id) do
+    with %{kind: :player, alive?: true, docked: %{id: port_id} = dock} = ship <- state.ships[id],
+         %{} = port <- Ports.by_id(state.seed, port_id),
+         wanted? = hostile_to?(ship, Map.get(dock, :nation)),
+         window = Quests.window(state.time),
+         {:ok, offer} <- find_offer(state.seed, port, window, offer_id, wanted?),
+         :ok <- check_accept(ship, offer, wanted?) do
+      ship = %{ship | quests: ship.quests ++ [Quests.to_quest(offer)]}
+      state = put_ship(state, id, ship)
+      {state, {:ok, view_for(state, ship)}}
     else
-      state = put_ship(state, id, %{ship | gold: ship.gold - cost})
-      {state, _events} = add_rep(state, id, nation, Reputation.atone_gain())
-      {state, {:ok, view_for(state.ships[id], port, nation)}}
+      {:error, reason} -> {state, {:error, reason}}
+      _ -> {state, {:error, :not_docked}}
     end
   end
 
-  # Gesucht bei der Nation: Sperr-Ansicht, sonst die normale
-  defp view_for(ship, port, nation) do
-    if hostile_to?(ship, nation),
-      do: Shop.hostile_view(ship, port, nation),
-      else: Shop.view(ship, port, nation)
+  # Angebot suchen; ein Wiedergutmachungsangebot ohne Gesucht-Status meldet :not_wanted statt :unknown_offer
+  defp find_offer(seed, port, window, offer_id, wanted?) do
+    case Quests.find_offer(seed, port, window, offer_id, wanted?) do
+      {:ok, offer} ->
+        {:ok, offer}
+
+      :error ->
+        case Quests.find_offer(seed, port, window, offer_id, true) do
+          {:ok, _} -> {:error, :not_wanted}
+          :error -> {:error, :unknown_offer}
+        end
+    end
+  end
+
+  defp check_accept(ship, offer, _wanted?) do
+    cond do
+      Enum.any?(ship.quests, &(&1.id == offer.id)) -> {:error, :duplicate}
+      length(ship.quests) >= Quests.max_active() -> {:error, :full}
+      true -> :ok
+    end
+  end
+
+  @doc """
+  Alle am angedockten Hafen erfüllten Quests abgeben: Gold, Ruf (bei der Nation des Auftraggebers),
+  Quest entfernt. `{state, {:ok, ansicht, ereignisse}}` oder `{state, {:error, :not_docked | :nothing}}`.
+  """
+  def turn_in(state, id) do
+    case state.ships[id] do
+      %{kind: :player, alive?: true, docked: %{id: port_id}} = ship ->
+        {done, rest} = Enum.split_with(ship.quests, &Quests.complete?(&1, port_id))
+
+        if done == [] do
+          {state, {:error, :nothing}}
+        else
+          gold = done |> Enum.map(& &1.gold) |> Enum.sum()
+          state = put_ship(state, id, %{ship | gold: ship.gold + gold, quests: rest})
+
+          {state, events} =
+            Enum.reduce(done, {state, []}, fn q, {st, ev} ->
+              {st, rep_ev} = add_rep(st, id, q.nation, q.rep)
+              done_ev = {:quest_done, id, q.gold, q.rep, q.nation, ship.x, ship.y}
+              {st, ev ++ [done_ev] ++ rep_ev}
+            end)
+
+          {state, {:ok, view_for(state, state.ships[id]), events}}
+        end
+
+      _ ->
+        {state, {:error, :not_docked}}
+    end
+  end
+
+  @doc "Quest aufgeben (überall, ohne Belohnung)."
+  def abandon_quest(state, id, quest_id) do
+    case state.ships[id] do
+      %{quests: quests} = ship ->
+        if Enum.any?(quests, &(&1.id == quest_id)) do
+          {put_ship(state, id, %{ship | quests: Enum.reject(quests, &(&1.id == quest_id))}), :ok}
+        else
+          {state, {:error, :unknown}}
+        end
+
+      _ ->
+        {state, {:error, :unknown}}
+    end
+  end
+
+  @doc """
+  Ein Spieler hat ein Schiff versenkt: Jagdquests mit passender Zielnation zählen den Abschuss (auch
+  bei Notwehr; nur Jäger mit Nation, nur durch lebende Spieler).
+  """
+  def quest_kill(state, killer_id, %{kind: :hunter, nation: nation}) when nation != nil do
+    case killer_id && state.ships[killer_id] do
+      %{kind: :player, alive?: true, quests: [_ | _] = quests} = killer ->
+        put_ship(state, killer_id, %{killer | quests: Enum.map(quests, &Quests.kill(&1, nation))})
+
+      _ ->
+        state
+    end
+  end
+
+  def quest_kill(state, _killer_id, _victim), do: state
+
+  @doc "Ein Spieler ist gestorben: seine Lieferquests scheitern (die Ware ist weg), Jagdquests bleiben."
+  def fail_deliveries(state, id) do
+    case state.ships[id] do
+      %{quests: [_ | _] = quests} = ship ->
+        {lost, kept} = Enum.split_with(quests, &(&1.kind == :delivery))
+        events = for _ <- lost, do: {:quest_lost, id, :death, ship.x, ship.y}
+        {put_ship(state, id, %{ship | quests: kept}), events}
+
+      _ ->
+        {state, []}
+    end
   end
 
   # Ist dieser Spieler bei dieser Nation Gesucht? (nur Spieler; NPCs nie)
@@ -467,7 +614,7 @@ defmodule Osp.State do
   @doc "Aktuelle Hafen-Ansicht des Spielers oder `nil`."
   def shop_view(state, id) do
     case state.ships[id] do
-      %{docked: %{name: port} = dock} = ship -> view_for(ship, port, Map.get(dock, :nation))
+      %{docked: %{}} = ship -> view_for(state, ship)
       _ -> nil
     end
   end
@@ -909,6 +1056,9 @@ defmodule Osp.State do
 
   defp event_entry({:hit, v, by, amount, x, y}),
     do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:quest_done, id, gold, rep, nation, x, y}),
+    do: {x, y, ["quest_done", public_id(id), gold, rep, Atom.to_string(nation), r2(x), r2(y)]}
 
   defp event_entry({:quest_lost, id, reason, x, y}),
     do: {x, y, ["quest_lost", public_id(id), Atom.to_string(reason), r2(x), r2(y)]}

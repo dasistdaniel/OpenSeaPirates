@@ -1,7 +1,7 @@
 defmodule Osp.HostilePortTest do
   use ExUnit.Case, async: true
 
-  alias Osp.{Combat, Nations, Profile, Reputation, Shop, State, World}
+  alias Osp.{Combat, Nations, Profile, Shop, State, World}
   alias Osp.Web.Socket
 
   @seed 4
@@ -127,7 +127,6 @@ defmodule Osp.HostilePortTest do
                hostile: true,
                nation: "england",
                rep: -50,
-               atone: %{cost: 300, gain: 25},
                gold: 0
              } = State.shop_view(st, @tok)
     end
@@ -148,61 +147,6 @@ defmodule Osp.HostilePortTest do
         assert {same, {:error, :hostile}} = State.shop(st, @tok, action)
         assert same.ships[@tok] == before
       end
-    end
-
-    test "Wiedergutmachung: zahlt 300, +25 Ruf nur bei dieser Nation" do
-      {st, _} = scene(-50, :england, %{gold: 400})
-      {st, :ok} = State.dock(st, @tok)
-
-      assert {st, {:ok, view}} = State.shop(st, @tok, :atone)
-      ship = st.ships[@tok]
-      assert ship.gold == 100
-      assert ship.rep.england == -25
-      assert ship.rep.france == 20
-      # -25 ist nicht mehr Gesucht: der Hafen ist wieder offen
-      refute Map.get(view, :hostile)
-    end
-
-    test "ohne genug Gold: Fehler ohne Abzug; genau 300 reicht" do
-      {st, _} = scene(-50, :england, %{gold: 299})
-      {st, :ok} = State.dock(st, @tok)
-      assert {same, {:error, :no_gold}} = State.shop(st, @tok, :atone)
-      assert same.ships[@tok].gold == 299 and same.ships[@tok].rep.england == -50
-
-      {st2, _} = scene(-50, :england, %{gold: 300})
-      {st2, :ok} = State.dock(st2, @tok)
-      assert {st2, {:ok, _}} = State.shop(st2, @tok, :atone)
-      assert st2.ships[@tok].gold == 0
-    end
-
-    test "Obergrenze +100: Wiedergutmachung bei -41 ergibt -16" do
-      {st, _} = scene(-41, :england, %{gold: 300})
-      {st, :ok} = State.dock(st, @tok)
-      {st, {:ok, _}} = State.shop(st, @tok, :atone)
-      assert st.ships[@tok].rep.england == -16
-    end
-
-    test "nicht gesucht: Wiedergutmachung abgelehnt, nichts bezahlt" do
-      {st, _} = scene(-20, :england, %{gold: 500})
-      {st, :ok} = State.dock(st, @tok)
-      assert {same, {:error, :not_wanted}} = State.shop(st, @tok, :atone)
-      assert same.ships[@tok].gold == 500 and same.ships[@tok].rep.england == -20
-    end
-
-    test "nach der Wiedergutmachung über -40 ist der Hafen wieder offen" do
-      {st, _} = scene(-60, :england, %{gold: 700})
-      {st, :ok} = State.dock(st, @tok)
-      {st, {:ok, _}} = State.shop(st, @tok, :atone)
-      assert st.ships[@tok].rep.england == -35
-      view = State.shop_view(st, @tok)
-      refute Map.get(view, :hostile)
-      assert {_, {:ok, _}} = State.shop(st, @tok, {:deposit, 10})
-    end
-
-    test "Nicht-Wiedergutmachung-Aktion außerhalb des Hafens: not_docked, nichts passiert" do
-      {st, _} = scene(-60, :england, %{gold: 700})
-      assert {same, {:error, :not_docked}} = State.shop(st, @tok, :atone)
-      assert same.ships[@tok].gold == 700
     end
 
     test "Hafen-Ansichten tragen die fünf Rufwerte und die Nation" do
@@ -234,7 +178,7 @@ defmodule Osp.HostilePortTest do
 
     defp send_json(state, map), do: Socket.handle_in({Jason.encode!(map), [opcode: :text]}, state)
 
-    test "buy mit atone wird angenommen, Unbekanntes ändert nichts" do
+    test "buy mit unbekanntem what ändert nichts; atone gibt es nicht mehr" do
       id = "h" <> Integer.to_string(System.unique_integer([:positive]))
       start_supervised!({World, id: id, seed: @seed, bots: 0, tick_ms: 25}, id: id)
       tok = "tok-sock-" <> Integer.to_string(System.unique_integer([:positive])) <> "-x"
@@ -243,10 +187,8 @@ defmodule Osp.HostilePortTest do
         send_json(socket(id), %{t: "join", token: tok, name: "A", nation: "france"})
 
       assert {:ok, st} = send_json(st, %{t: "buy", what: "atone"})
-      assert {:ok, st} = send_json(st, %{t: "buy", what: "atone", id: "x"})
       assert {:ok, _} = send_json(st, %{t: "buy", what: "unbekannt"})
       assert World.state(id).ships[tok].gold == 0
-      assert Reputation.atone_cost() == 300
     end
   end
 end
