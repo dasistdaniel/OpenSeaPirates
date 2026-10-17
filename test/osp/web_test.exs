@@ -32,7 +32,12 @@ defmodule Osp.WebTest do
 
     test "join liefert welcome; ungültiges Token beendet die Verbindung", %{state: state} do
       assert {:push, {:text, json}, state} =
-               send_json(state, %{t: "join", token: "abcdefgh1234", name: "  Anna  "})
+               send_json(state, %{
+                 t: "join",
+                 token: "abcdefgh1234",
+                 name: "  Anna  ",
+                 nation: "spain"
+               })
 
       assert %{"t" => "welcome", "you" => you, "chunk" => 16, "res" => 2} =
                Jason.decode!(json)
@@ -52,7 +57,8 @@ defmodule Osp.WebTest do
     end
 
     test "chunk antwortet binär im Protokollformat, Anfragen sind begrenzt", %{state: state} do
-      {:push, _, state} = send_json(state, %{t: "join", token: "abcdefgh1234", name: "A"})
+      {:push, _, state} =
+        send_json(state, %{t: "join", token: "abcdefgh1234", name: "A", nation: "spain"})
 
       assert {:push, {:binary, frame}, state} = send_json(state, %{t: "chunk", cx: -3, cy: 5})
       assert <<1, -3::signed-32, 5::signed-32, heights::binary>> = frame
@@ -73,7 +79,8 @@ defmodule Osp.WebTest do
     test "Hafen-Nachrichten: Andocken, Kaufen und Bank werden angenommen, Unsinn ignoriert", %{
       state: state
     } do
-      {:push, _, state} = send_json(state, %{t: "join", token: "abcdefgh1234", name: "A"})
+      {:push, _, state} =
+        send_json(state, %{t: "join", token: "abcdefgh1234", name: "A", nation: "spain"})
 
       for msg <- [
             %{t: "dock"},
@@ -106,7 +113,8 @@ defmodule Osp.WebTest do
 
     test "Raten-Begrenzung: Stoß wird angenommen, dauerhaftes Überfluten verworfen und getrennt",
          %{state: state} do
-      {:push, _, state} = send_json(state, %{t: "join", token: "abcdefgh1234", name: "A"})
+      {:push, _, state} =
+        send_json(state, %{t: "join", token: "abcdefgh1234", name: "A", nation: "spain"})
 
       # innerhalb des Stoßes kommt alles durch (Steuerung wirkt)
       {state, first} =
@@ -136,16 +144,31 @@ defmodule Osp.WebTest do
       {:ok, b} = Socket.init([])
 
       assert {:push, {:text, _}, %{id: "token-aaaa-1"}} =
-               send_json(%{a | world: id}, %{t: "join", token: "token-aaaa-1", name: "A"})
+               send_json(%{a | world: id}, %{
+                 t: "join",
+                 token: "token-aaaa-1",
+                 name: "A",
+                 nation: "spain"
+               })
 
       assert {:push, {:text, json}, %{id: nil}} =
-               send_json(%{b | world: id}, %{t: "join", token: "token-bbbb-2", name: "B"})
+               send_json(%{b | world: id}, %{
+                 t: "join",
+                 token: "token-bbbb-2",
+                 name: "B",
+                 nation: "spain"
+               })
 
       assert %{"t" => "error", "reason" => "full"} = Jason.decode!(json)
 
       # Wiederverbinden des ersten Spielers klappt trotzdem
       assert {:push, {:text, _}, %{id: "token-aaaa-1"}} =
-               send_json(%{a | world: id}, %{t: "join", token: "token-aaaa-1", name: "A"})
+               send_json(%{a | world: id}, %{
+                 t: "join",
+                 token: "token-aaaa-1",
+                 name: "A",
+                 nation: "spain"
+               })
     end
 
     test "Schnappschuss wird als JSON-Text weitergereicht", %{state: state} do

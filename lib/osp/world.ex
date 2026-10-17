@@ -35,9 +35,12 @@ defmodule Osp.World do
 
   @doc """
   Spieler tritt bei (oder verbindet sich neu). `pid` bekommt die Schnappschüsse.
-  Gibt `{:ok, info}` mit `%{id, chunk, resolution, land}` zurück.
+  Gibt `{:ok, info}` mit `%{id, chunk, resolution, land}` zurück. `opts[:nation]` ist die gewählte
+  Heimatnation für einen Spieler ohne gespeicherte Nation (eine vorhandene bleibt); ohne Angabe und
+  ohne Profil gilt eine Nation aus dem Token-Hash (Tests, Bots).
   """
-  def join(world, id, name, pid \\ self()), do: GenServer.call(via(world), {:join, id, name, pid})
+  def join(world, id, name, pid \\ self(), opts \\ []),
+    do: GenServer.call(via(world), {:join, id, name, pid, opts})
 
   @doc "Tastenzustand setzen: `%{up?: bool, left?: bool, right?: bool}`."
   def input(world, id, keys), do: GenServer.cast(via(world), {:input, id, keys})
@@ -98,10 +101,10 @@ defmodule Osp.World do
   end
 
   @impl true
-  def handle_call({:join, id, name, pid}, _from, state) do
+  def handle_call({:join, id, name, pid, opts}, _from, state) do
     # Neue Spieler nur bis zur Obergrenze; wer schon in der Welt ist (Wiederverbinden), darf immer
     if Map.has_key?(state.sim.ships, id) or State.player_count(state.sim) < state.max_players do
-      {state, info} = do_join(state, id, name, pid)
+      {state, info} = do_join(state, id, name, pid, opts)
       # Wer angedockt wiederkommt (Verbindung abgerissen), bekommt die Hafen-Ansicht erneut
       if view = State.shop_view(state.sim, id), do: reply_shop(state, id, view)
       {:reply, {:ok, info}, state}
@@ -200,10 +203,11 @@ defmodule Osp.World do
 
   def handle_info(_other, state), do: {:noreply, state}
 
-  defp do_join(state, id, name, pid) do
+  defp do_join(state, id, name, pid, opts) do
     state = detach(state, id)
     ref = Process.monitor(pid)
-    sim = State.join(state.sim, id, name, Profiles.get(id))
+    profile = with_nation(Profiles.get(id), id, opts[:nation])
+    sim = State.join(state.sim, id, name, profile)
 
     state = %{
       state
@@ -220,6 +224,18 @@ defmodule Osp.World do
     }
 
     {state, info}
+  end
+
+  # Das Profil mit Heimatnation: eine gespeicherte bleibt, sonst die gewählte, sonst aus dem Token-Hash
+  defp with_nation(profile, id, wanted) do
+    decoded = Profile.decode(profile)
+
+    if decoded["nation"] do
+      decoded
+    else
+      nation = wanted || Enum.at(Osp.Nations.all(), :erlang.phash2({:nation, id}, 5))
+      Map.put(decoded, "nation", Atom.to_string(nation))
+    end
   end
 
   # --- Spielstände speichern ---------------------------------------------------------

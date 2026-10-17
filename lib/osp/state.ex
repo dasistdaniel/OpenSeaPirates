@@ -10,7 +10,19 @@ defmodule Osp.State do
   Kopfgeld (`bounty`) als Beute fallen; `Osp.Director` hält die Welt um Spieler herum bevölkert.
   """
 
-  alias Osp.{Combat, Director, Hunter, Ports, Sailing, Ships, Shop, Spawn, Terrain, Wander}
+  alias Osp.{
+    Combat,
+    Director,
+    Hunter,
+    Nations,
+    Ports,
+    Sailing,
+    Ships,
+    Shop,
+    Spawn,
+    Terrain,
+    Wander
+  }
 
   @step_ms 25
   @aoi 45.0
@@ -163,7 +175,8 @@ defmodule Osp.State do
     if Map.has_key?(state.ships, id) do
       update_ship(state, id, &%{&1 | name: name, gone_at: nil})
     else
-      {x, y, heading, rng} = pick_spawn(state)
+      nation = profile_nation(profile)
+      {x, y, heading, rng} = pick_spawn(state, nation, {0.0, 0.0})
       state = %{state | rng: rng}
       ship = %{new_ship(id, name, :player, x, y, heading) | invuln_until: state.time + 2_000}
       ship = if profile, do: Osp.Profile.apply(ship, profile), else: ship
@@ -213,14 +226,44 @@ defmodule Osp.State do
     end
   end
 
-  # Startpunkt nahe anderer Schiffe, aber möglichst weit weg von Piratenjägern (sonst stirbt man
-  # direkt nach dem Auftauchen wieder); nach ein paar Versuchen gilt der letzte Vorschlag.
-  defp pick_spawn(state), do: pick_spawn(state, 8)
+  defp profile_nation(%{} = profile) do
+    case Nations.parse(profile["nation"]) do
+      {:ok, nation} -> nation
+      :error -> nil
+    end
+  end
 
-  defp pick_spawn(state, tries) do
+  defp profile_nation(_other), do: nil
+
+  @doc """
+  Startpunkt für ein Schiff der Heimatnation `nation`: nahe dem Hafen dieser Nation, der `reference`
+  am nächsten liegt (6–18 WE vom Ankerplatz, also außerhalb der Schutzzone). Ohne Nation oder ohne
+  Hafen im Umkreis (`opts[:max_radius]`, Standard 1500 WE) gilt der bisherige Start nahe anderer
+  Schiffe (`Osp.Spawn.pick/4`). `{x, y, heading, rng}`.
+  """
+  def spawn_for(state, nation, reference, rng, opts \\ []) do
     others = for {_, s} <- state.ships, s.alive?, do: {s.x, s.y}
+    max_radius = Keyword.get(opts, :max_radius, 1500.0)
+
+    with true <- nation != nil,
+         %{} = port <- Nations.nearest_port_of(state.seed, nation, reference, max_radius),
+         {_, _, _, _} = spot <-
+           Spawn.pick_around(state.seed, others, {port.x, port.y}, 6.0, 18.0, rng) do
+      spot
+    else
+      _ -> Spawn.pick(state.seed, others, others, rng)
+    end
+  end
+
+  # Startpunkt (Heimatgebiet, sonst nahe anderer Schiffe), aber möglichst weit weg von Piratenjägern
+  # (sonst stirbt man direkt nach dem Auftauchen wieder); nach ein paar Versuchen gilt der letzte
+  # Vorschlag.
+  defp pick_spawn(state), do: pick_spawn(state, nil, {0.0, 0.0})
+  defp pick_spawn(state, nation, reference), do: pick_spawn(state, nation, reference, 8)
+
+  defp pick_spawn(state, nation, reference, tries) do
     hunters = for {_, s} <- state.ships, s.alive?, s.kind == :hunter, do: {s.x, s.y}
-    {x, y, heading, rng} = Spawn.pick(state.seed, others, others, state.rng)
+    {x, y, heading, rng} = spawn_for(state, nation, reference, state.rng)
 
     safe? =
       Enum.all?(hunters, fn {hx, hy} ->
@@ -229,7 +272,7 @@ defmodule Osp.State do
 
     if safe? or tries <= 1,
       do: {x, y, heading, rng},
-      else: pick_spawn(%{state | rng: rng}, tries - 1)
+      else: pick_spawn(%{state | rng: rng}, nation, reference, tries - 1)
   end
 
   @doc "NPC-Schiff (`:merchant` oder `:hunter`) in die Welt setzen; Kopfgeld wird gewürfelt."
@@ -253,8 +296,12 @@ defmodule Osp.State do
     do: %{state | ships: Map.delete(state.ships, id), targets: Map.delete(state.targets, id)}
 
   @doc "Neuer Startpunkt für ein wiederauftauchendes Schiff: `{state, x, y, heading}`."
-  def respawn_point(state, _id) do
-    {x, y, heading, rng} = pick_spawn(state)
+  def respawn_point(state, id) do
+    ship = state.ships[id]
+
+    {x, y, heading, rng} =
+      pick_spawn(state, ship && ship.nation, (ship && {ship.x, ship.y}) || {0.0, 0.0})
+
     {%{state | rng: rng}, x, y, heading}
   end
 

@@ -40,11 +40,11 @@ defmodule Osp.WorldTest do
     assert :math.sqrt(:math.pow(moved.x - start.x, 2) + :math.pow(moved.y - start.y, 2)) > 0.2
   end
 
-  test "zweiter Spieler startet 12-40 WE vom ersten (1-2 Bildschirme)" do
-    w = start_world()
-    {:ok, _} = World.join(w, "p1", "Anna")
-    {:ok, _} = World.join(w, "p2", "Ben")
-    %{ships: %{"p1" => a, "p2" => b}} = World.state(w)
+  # Spieler ohne Heimatnation (nur Tests und Bots) starten wie bisher nahe anderer Schiffe; Spieler mit
+  # Nation starten in ihrem Heimatgebiet (siehe nation_join_test.exs)
+  test "zweiter Spieler ohne Nation startet 12-40 WE vom ersten (1-2 Bildschirme)" do
+    st = Osp.State.new(4, 0) |> Osp.State.join("p1", "Anna") |> Osp.State.join("p2", "Ben")
+    %{"p1" => a, "p2" => b} = st.ships
     d = :math.sqrt(:math.pow(a.x - b.x, 2) + :math.pow(a.y - b.y, 2))
     assert d >= 12.0 and d <= 41.0
   end

@@ -4,7 +4,8 @@ defmodule Osp.Web.Socket do
 
   **Client → Server** (JSON-Text):
 
-    * `{"t":"join","token":"...","name":"..."}` – beitreten (genau einmal, zuerst)
+    * `{"t":"join","token":"...","name":"...","nation":"spain"}` – beitreten (genau einmal, zuerst);
+      `nation` ist nur nötig, solange das Profil noch keine Heimatnation hat
     * `{"t":"input","u":bool,"l":bool,"r":bool}` – Tastenzustand
     * `{"t":"chunk","cx":int,"cy":int}` – Geländeblock anfordern
     * `{"t":"fire","side":"left"|"right"}` – Breitseite (Q = links, E = rechts)
@@ -19,6 +20,8 @@ defmodule Osp.Web.Socket do
     * Text `{"t":"welcome", ...}` – nach dem Beitritt (`you`, `seed`, `chunk`, `res`, `land`); nach
       einem Wiederverbinden kommt es erneut, ist das Schiff angedockt, folgt die Hafen-Ansicht
     * Text `{"t":"error","reason":"full"}` – Beitritt abgelehnt (Welt voll)
+    * Text `{"t":"error","reason":"nation_required","nations":[…]}` – das Profil hat noch keine Nation:
+      die Verbindung bleibt offen, der Client wählt und schickt `join` erneut mit `nation`
     * Text `{"t":"snap", ...}` – Schnappschuss, ca. 20× pro Sekunde
     * Text `{"t":"shop", ...}` – Hafen-Ansicht (`open: true` mit Angeboten) oder `open: false`,
       optional mit `error`
@@ -30,7 +33,7 @@ defmodule Osp.Web.Socket do
 
   @behaviour WebSock
 
-  alias Osp.{Terrain, World}
+  alias Osp.{Nations, Profile, Profiles, Terrain, World}
 
   @main_world "main"
   @max_name 20
@@ -116,24 +119,12 @@ defmodule Osp.Web.Socket do
 
     if valid_token?(token) and World.alive?(state.world) do
       name = clean_name(msg["name"], token)
+      nation = chosen_nation(msg["nation"])
 
-      case World.join(state.world, token, name, self()) do
-        {:ok, info} ->
-          reply =
-            %{
-              t: "welcome",
-              you: Osp.State.public_id(info.id),
-              seed: World.seed(state.world),
-              chunk: info.chunk,
-              res: info.resolution,
-              land: info.land
-            }
-
-          {:push, {:text, Jason.encode!(reply)}, %{state | id: token}}
-
-        {:error, reason} ->
-          # z. B. :full – der Client zeigt den Grund und gibt auf
-          {:push, {:text, Jason.encode!(%{t: "error", reason: Atom.to_string(reason)})}, state}
+      if stored_nation(token) == nil and nation == nil do
+        {:push, {:text, Jason.encode!(nation_required())}, state}
+      else
+        do_join(token, name, nation, state)
       end
     else
       {:stop, :normal, 1008, state}
@@ -222,6 +213,54 @@ defmodule Osp.Web.Socket do
   defp handle_msg(_other, state), do: {:ok, state}
 
   # --- Hilfen ----------------------------------------------------------------------
+
+  defp do_join(token, name, nation, state) do
+    case World.join(state.world, token, name, self(), nation: nation) do
+      {:ok, info} ->
+        reply = %{
+          t: "welcome",
+          you: Osp.State.public_id(info.id),
+          seed: World.seed(state.world),
+          chunk: info.chunk,
+          res: info.resolution,
+          land: info.land
+        }
+
+        {:push, {:text, Jason.encode!(reply)}, %{state | id: token}}
+
+      {:error, reason} ->
+        # z. B. :full – der Client zeigt den Grund und gibt auf
+        {:push, {:text, Jason.encode!(%{t: "error", reason: Atom.to_string(reason)})}, state}
+    end
+  end
+
+  # Gewählte Nation aus dem Netz: nur die festen Namen, sonst nil
+  defp chosen_nation(value) do
+    case Nations.parse(value) do
+      {:ok, nation} -> nation
+      :error -> nil
+    end
+  end
+
+  # Heimatnation aus dem gespeicherten Profil (nil bei neuen Spielern und alten Profilen)
+  defp stored_nation(token) do
+    case Profiles.get(token) do
+      %{} = profile -> profile |> Profile.decode() |> Map.get("nation")
+      _ -> nil
+    end
+  end
+
+  defp nation_required do
+    %{
+      t: "error",
+      reason: "nation_required",
+      nations:
+        for n <- Nations.all() do
+          info = Nations.info(n)
+          %{id: Atom.to_string(n), name: info.name, color: info.color, bonus: info.bonus_text}
+        end
+    }
+  end
 
   # Einkaufswünsche aus dem Netz nur über feste Zuordnungen in Atome übersetzen
   defp buy_action("class", c), do: if(@classes[c], do: {:class, @classes[c]})
