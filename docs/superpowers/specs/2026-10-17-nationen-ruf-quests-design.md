@@ -60,7 +60,7 @@ zusammenspielt, kann Häfen für seine Nation erobern. Das gibt dem Spiel Richtu
 - **Nationen:** fünf; Flagge klein vor dem Namen; Gebiete auf der unendlichen Welt (aus dem Seed); Nation beim Start wählbar, mit kleinen Startboni.
 - **Ruf:** Das Versenken von Handelsschiffen einer Nation senkt den Ruf bei dieser Nation, ebenso das Versenken ihrer Jäger. **Nur** bei dieser Nation, keine Folgen für andere. Ausnahme **Selbstverteidigung**: Ein Jäger, der den Spieler angreift, senkt beim Versenken den Ruf nicht.
 - **Schlechter Ruf im Hafen:** Andocken bleibt möglich, aber der Hafen **verkauft nichts mehr**; es gibt nur noch eine Wiedergutmachungsquest. Die **Schutzzone entfällt** für solche Spieler: Der Hafen alarmiert etwa **zwei Jäger** der Nation, oder das **Fort schießt selbst**. Der **erste Treffer** des Forts trifft fast immer, alle weiteren je nachdem, wie gut der Spieler reagiert und ausweicht.
-- **Jäger** machen Jagd auf Segler mit schlechtem Ruf.
+- **Jäger** machen Jagd auf Segler mit schlechtem Ruf: Sie greifen erst ab der Stufe **Misstrauisch** (Ruf −10 oder schlechter) an.
 - **Quests** gibt es in Häfen: Handelsware liefern und Piratenjäger jagen; Belohnung Gold.
 - **Eroberung:** Häfen können für die eigene Nation erobert werden und erweitern damit das Gebiet. Es soll **sehr schwer** sein und kaum alleine möglich (Teambildung).
 - **Rückfall:** Eroberte Gebiete fallen nach einiger Zeit an die ursprüngliche Nation zurück, **wenn sie an deren Gebiet grenzen**. Ist ein eroberter Hafen nur von Häfen der Eroberer-Nation umgeben, bleibt er (zunächst) dauerhaft.
@@ -122,10 +122,14 @@ der Spieler zuerst angegriffen hat und der sich wehrt, zählt **nicht** als Notw
   entkommen können. Ein Fort-Treffer ist spürbar, aber nicht sofort tödlich (Annahme: 3 HP, Nachladen 5 s).
   Eine Warnmeldung („Das Fort eröffnet das Feuer") kommt vor dem ersten Schuss.
 
-**Jäger (Änderung am Verhalten):** Jäger tragen die Nation des Gebiets. Sie greifen **nur Spieler an,
-deren Ruf bei ihrer Nation unter +10 liegt** (Annahme). Spieler mit Gesucht-Status ziehen zusätzlich
-Jäger an: Der `Osp.Director` hält um sie mehr Jäger dieser Nation vor (Annahme: Soll 2 statt 1). Händler
-bleiben friedlich, bis sie getroffen werden (wie heute), und tragen ebenfalls eine Nation.
+**Jäger (Änderung am Verhalten, von Daniel entschieden):** Jäger tragen die Nation des Gebiets. Sie greifen
+**erst ab Misstrauisch an**, also Spieler mit Ruf **−10 oder schlechter** bei ihrer Nation. Neutrale und
+befreundete Spieler lassen sie in Ruhe, auch in fremden Gewässern. Folge: Jäger sind keine Dauergefahr
+mehr, sondern eine Folge eigener Taten; frühes Spiel besteht aus Händlern, Quests und Beute. Spieler mit
+Gesucht-Status ziehen zusätzlich mehr Jäger an: Der `Osp.Director` hält um sie mehr Jäger dieser Nation
+vor (Annahme: Soll 2 statt 1). Händler bleiben friedlich, bis sie getroffen werden (wie heute), und
+tragen ebenfalls eine Nation. Jagdquests (Baustein 3) liefern die Jäger als Ziel, auch für Spieler, die
+sonst keinen Ärger haben.
 
 **Ergebnis nach Baustein 2:** Taten ändern den Ruf, Häfen und Jäger reagieren, die Abwärtsspirale ist
 durch die Selbstverteidigung und den Ruf-Rückgang entschärft. Die Wiedergutmachungsquest selbst kommt mit
