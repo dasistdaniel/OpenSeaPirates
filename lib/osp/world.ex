@@ -66,6 +66,12 @@ defmodule Osp.World do
   @doc "Segelstufe wählen: `:reefed`, `:full` oder `:studding`."
   def sail(world, id, mode), do: GenServer.cast(via(world), {:sail, id, mode})
 
+  @doc """
+  Quest-Aktion: `{:accept, angebots_id}`, `:turn_in` oder `{:abandon, quest_id}`. Antwort (Hafen-Ansicht
+  oder Fehler) kommt als `{:osp_shop, map}`.
+  """
+  def quest(world, id, op), do: GenServer.cast(via(world), {:quest, id, op})
+
   @doc "Spieler verlässt die Welt sofort."
   def leave(world, id), do: GenServer.cast(via(world), {:leave, id})
 
@@ -167,6 +173,45 @@ defmodule Osp.World do
 
   def handle_cast({:sail, id, mode}, state),
     do: {:noreply, %{state | sim: State.set_sail(state.sim, id, mode)}}
+
+  def handle_cast({:quest, id, {:accept, offer_id}}, state) do
+    {sim, result} = State.accept_quest(state.sim, id, offer_id)
+    state = %{state | sim: sim}
+
+    case result do
+      {:ok, view} -> reply_shop(state, id, view)
+      {:error, reason} -> reply_shop(state, id, error_view(sim, id, reason))
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:quest, id, :turn_in}, state) do
+    {sim, result} = State.turn_in(state.sim, id)
+    state = %{state | sim: sim}
+
+    case result do
+      {:ok, view, events} ->
+        reply_shop(state, id, view)
+        {:noreply, %{state | pending: state.pending ++ events}}
+
+      {:error, reason} ->
+        reply_shop(state, id, error_view(sim, id, reason))
+        {:noreply, state}
+    end
+  end
+
+  def handle_cast({:quest, id, {:abandon, quest_id}}, state) do
+    {sim, result} = State.abandon_quest(state.sim, id, quest_id)
+    state = %{state | sim: sim}
+
+    # Ist der Spieler angedockt, bekommt er die aktualisierte Ansicht
+    with :ok <- result,
+         view when view != nil <- State.shop_view(sim, id),
+         do: reply_shop(state, id, view)
+
+    {:noreply, state}
+  end
 
   def handle_cast({:leave, id}, state) do
     state = state |> save_ship(id) |> detach(id)
@@ -284,6 +329,12 @@ defmodule Osp.World do
   end
 
   # --- Hilfen ----------------------------------------------------------------------
+
+  # Aktuelle Hafen-Ansicht (oder „geschlossen") mit dem Fehlergrund
+  defp error_view(sim, id, reason) do
+    view = State.shop_view(sim, id) || %{t: "shop", open: false}
+    Map.put(view, :error, Atom.to_string(reason))
+  end
 
   defp reply_shop(state, id, view) do
     if pid = state.pids[id], do: send(pid, {:osp_shop, view})

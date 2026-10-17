@@ -13,7 +13,9 @@ defmodule Osp.Web.Socket do
     * `{"t":"buy","what":"class"|"upgrade"|"ammo"|"repair","id":"..."}` – im Hafen kaufen
     * `{"t":"bank","op":"deposit"|"withdraw","amount":int|"all"}` – Gold einlagern/abheben
     * `{"t":"ammo","kind":"ball"|"chain"|"fire"}` – Munition wählen (1/2/3)
-    * `{"t":"sail","mode":"reefed"|"full"|"studding"}` – Segelstufe (R raffen, B Beisegel)
+    * `{"t":"sail","mode":"reefed"|"full"|"studding"}` – Segelstufe (S schaltet reihum)
+    * `{"t":"quest","op":"accept"|"abandon","id":"q:port:10,1:5:0"}` / `{"t":"quest","op":"turn_in"}` –
+      Quest annehmen (angedockt), aufgeben, im Hafen abgeben
 
   **Server → Client:**
 
@@ -169,6 +171,24 @@ defmodule Osp.Web.Socket do
     {:ok, state}
   end
 
+  # Quests: annehmen (Angebots-ID), abgeben, aufgeben (Quest-ID); IDs nur in fester Form
+  defp handle_msg(%{"t" => "quest", "op" => "accept", "id" => qid}, %{id: id} = state)
+       when id != nil do
+    if valid_quest_id?(qid), do: World.quest(state.world, id, {:accept, qid})
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "quest", "op" => "abandon", "id" => qid}, %{id: id} = state)
+       when id != nil do
+    if valid_quest_id?(qid), do: World.quest(state.world, id, {:abandon, qid})
+    {:ok, state}
+  end
+
+  defp handle_msg(%{"t" => "quest", "op" => "turn_in"}, %{id: id} = state) when id != nil do
+    World.quest(state.world, id, :turn_in)
+    {:ok, state}
+  end
+
   defp handle_msg(%{"t" => "buy", "what" => what} = msg, %{id: id} = state) when id != nil do
     case buy_action(what, msg["id"]) do
       nil -> :ok
@@ -268,6 +288,11 @@ defmodule Osp.Web.Socket do
   defp buy_action("ammo", k) when k in ["chain", "fire"], do: {:ammo, @ammo[k]}
   defp buy_action("repair", _), do: :repair
   defp buy_action(_, _), do: nil
+
+  defp valid_quest_id?(qid) when is_binary(qid) and byte_size(qid) <= 64,
+    do: String.match?(qid, ~r/^q:port:-?\d{1,7},-?\d{1,7}:\d{1,6}:\d$/)
+
+  defp valid_quest_id?(_other), do: false
 
   defp valid_token?(token),
     do:
