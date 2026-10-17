@@ -60,7 +60,9 @@ defmodule Osp.Director do
   """
   @spec want_hunters(map()) :: pos_integer()
   def want_hunters(%{terr: terr} = human) when terr != nil do
-    if Reputation.standing(State.rep_of(human, terr)) == :wanted, do: @want_hunters + 1, else: @want_hunters
+    if Reputation.standing(State.rep_of(human, terr)) == :wanted,
+      do: @want_hunters + 1,
+      else: @want_hunters
   end
 
   def want_hunters(_human), do: @want_hunters

@@ -629,7 +629,7 @@ defmodule Osp.State do
   end
 
   # Nächster lebender Spieler im Umkreis `radius` (nicht in der Schonzeit), den `wanted?` zulässt
-  defp nearest_player(state, ship, radius, wanted? \\ fn _ -> true end) do
+  defp nearest_player(state, ship, radius, wanted?) do
     state.ships
     |> Map.values()
     |> Enum.filter(

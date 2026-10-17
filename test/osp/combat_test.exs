@@ -210,7 +210,13 @@ defmodule Osp.CombatTest do
       |> State.update_ship("npc-2", &%{&1 | x: bx, y: by + 2.0, heading: 0.0})
       |> State.update_ship("a", fn p ->
         # bei allen Nationen Misstrauisch oder schlechter: Jäger greifen an
-        %{p | x: bx + 8.0, y: by + 8.0, invuln_until: 0, rep: Map.new(Osp.Nations.all(), &{&1, -20})}
+        %{
+          p
+          | x: bx + 8.0,
+            y: by + 8.0,
+            invuln_until: 0,
+            rep: Map.new(Osp.Nations.all(), &{&1, -20})
+        }
       end)
 
     {s, _} = Combat.fire(s, "npc-1", :right)
@@ -279,6 +285,7 @@ defmodule Osp.CombatTest do
   test "Piratenjäger greifen Spieler an und schießen" do
     {bx, by} = open_water()
     s = State.join(State.new(@seed, 0), "a", "Anna")
+
     s =
       State.update_ship(s, "a", fn p ->
         # bei allen Nationen Misstrauisch oder schlechter: Jäger greifen an

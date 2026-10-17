@@ -28,7 +28,9 @@ defmodule Osp.ReputationHuntTest do
     State.new(@seed, 0)
     |> State.join(@tok, "Anna", Profile.decode(%{"nation" => "france"}))
     |> State.update_ship(@tok, fn s ->
-      rep = s.rep |> Map.put(:england, rep_england) |> Map.merge(Map.new(Keyword.get(opts, :rep, [])))
+      rep =
+        s.rep |> Map.put(:england, rep_england) |> Map.merge(Map.new(Keyword.get(opts, :rep, [])))
+
       %{s | x: bx, y: by, heading: 0.0, speed: 0.0, invuln_until: 0, rep: rep}
     end)
     |> State.add_npc(:hunter, "Jäger", bx + 6.0, by + 1.0, :math.pi())
@@ -84,7 +86,15 @@ defmodule Osp.ReputationHuntTest do
       State.new(@seed, 0, director?: true)
       |> State.join(@tok, "Anna", Profile.decode(%{"nation" => "france"}))
       |> State.update_ship(@tok, fn s ->
-        %{s | x: bx, y: by, speed: 0.0, invuln_until: 10_000_000, terr: :england, rep: %{s.rep | england: -60}}
+        %{
+          s
+          | x: bx,
+            y: by,
+            speed: 0.0,
+            invuln_until: 10_000_000,
+            terr: :england,
+            rep: %{s.rep | england: -60}
+        }
       end)
 
     {st, _} =
