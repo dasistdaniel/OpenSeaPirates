@@ -3,7 +3,8 @@ defmodule Osp.Ships do
   Schiffsklassen und Upgrades (reine Daten und Rechnung, siehe docs/upgrades.md).
 
   Ein Spielerschiff hat `class` (Atom) und `upgrades` (`%{cannons: 0..3, hull: 0..3, sails: 0..3}`).
-  `stats/1` rechnet daraus die Werte, mit denen Physik und Kampf arbeiten.
+  `stats/1` rechnet daraus (und aus dem Bonus der Heimatnation `ship.nation`, siehe `Osp.Nations`)
+  die Werte, mit denen Physik und Kampf arbeiten.
   """
 
   @order [:schaluppe, :klipper, :brigg, :fregatte, :galeone]
@@ -99,15 +100,16 @@ defmodule Osp.Ships do
 
   @doc "Werte eines Spielerschiffs aus Klasse und Upgrades."
   @spec stats(map()) :: map()
-  def stats(%{class: class, upgrades: up}) do
+  def stats(%{class: class, upgrades: up} = ship) do
     c = class(class)
+    bonus = Osp.Nations.bonus(Map.get(ship, :nation))
 
     %{
-      max_hp: c.hp + Enum.at(@upgrades.hull.effect, up.hull),
+      max_hp: c.hp + Enum.at(@upgrades.hull.effect, up.hull) + bonus.hp,
       cannons: c.cannons,
-      dmg_mult: Enum.at(@upgrades.cannons.effect, up.cannons),
-      speed_mult: c.speed * Enum.at(@upgrades.sails.effect, up.sails),
-      turn_mult: c.turn * Enum.at(@upgrades.sails.effect, up.sails),
+      dmg_mult: Enum.at(@upgrades.cannons.effect, up.cannons) * bonus.dmg,
+      speed_mult: c.speed * Enum.at(@upgrades.sails.effect, up.sails) * bonus.speed,
+      turn_mult: c.turn * Enum.at(@upgrades.sails.effect, up.sails) * bonus.turn,
       radius: c.radius
     }
   end

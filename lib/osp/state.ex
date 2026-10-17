@@ -112,6 +112,7 @@ defmodule Osp.State do
       id: id,
       name: name,
       kind: kind,
+      nation: nil,
       class: class,
       upgrades: upgrades,
       color: color,

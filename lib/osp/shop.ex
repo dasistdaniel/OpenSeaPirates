@@ -28,7 +28,9 @@ defmodule Osp.Shop do
 
   def ammo_kinds, do: @ammo
   def ammo_max, do: @ammo_max
-  def repair_price_per_hp, do: @repair_per_hp
+  @doc "Gold je HP bei der Reparatur; Niederländer zahlen weniger (Nationsbonus), mindestens 1."
+  def repair_price_per_hp(ship),
+    do: max(round(@repair_per_hp * Osp.Nations.bonus(Map.get(ship, :nation)).repair), 1)
 
   # --- Schiffe --------------------------------------------------------------------
 
@@ -101,7 +103,7 @@ defmodule Osp.Shop do
 
   # --- Reparatur ----------------------------------------------------------------------
 
-  @doc "Repariert so viel, wie das Gold reicht (4 Gold je HP)."
+  @doc "Repariert so viel, wie das Gold reicht (4 Gold je HP, siehe `repair_price_per_hp/1`)."
   def repair(ship) do
     missing = ship.max_hp * 1.0 - ship.hp
 
@@ -109,16 +111,18 @@ defmodule Osp.Shop do
       missing <= 0.0 ->
         {:error, :full}
 
-      ship.gold < @repair_per_hp ->
+      ship.gold < repair_price_per_hp(ship) ->
         {:error, :no_gold}
 
       true ->
-        hp = min(ceil(missing), div(ship.gold, @repair_per_hp))
-        {:ok, %{pay(ship, hp * @repair_per_hp) | hp: min(ship.hp + hp, ship.max_hp * 1.0)}}
+        price = repair_price_per_hp(ship)
+        hp = min(ceil(missing), div(ship.gold, price))
+        {:ok, %{pay(ship, hp * price) | hp: min(ship.hp + hp, ship.max_hp * 1.0)}}
     end
   end
 
-  def repair_cost(ship), do: ceil(max(ship.max_hp * 1.0 - ship.hp, 0.0)) * @repair_per_hp
+  def repair_cost(ship),
+    do: ceil(max(ship.max_hp * 1.0 - ship.hp, 0.0)) * repair_price_per_hp(ship)
 
   # --- Bank --------------------------------------------------------------------------
 
@@ -198,7 +202,7 @@ defmodule Osp.Shop do
             max: @ammo_max
           }
         end,
-      repair: %{cost: repair_cost(ship), per_hp: @repair_per_hp}
+      repair: %{cost: repair_cost(ship), per_hp: repair_price_per_hp(ship)}
     }
   end
 

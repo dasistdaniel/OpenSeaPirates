@@ -8,9 +8,9 @@ defmodule Osp.Profile do
   manipulierte Datei nie das Spiel zum Absturz bringt (unbekannte Klasse → Startschiff usw.).
   """
 
-  alias Osp.{Ships, Shop}
+  alias Osp.{Nations, Ships, Shop}
 
-  @version 1
+  @version 2
   @max_gold 100_000_000
   @classes Map.new(Ships.order(), &{Atom.to_string(&1), &1})
   @slots %{"cannons" => :cannons, "hull" => :hull, "sails" => :sails}
@@ -20,6 +20,7 @@ defmodule Osp.Profile do
     %{
       "v" => @version,
       "name" => "",
+      "nation" => nil,
       "gold" => 0,
       "bank" => 0,
       "class" => "schaluppe",
@@ -36,6 +37,7 @@ defmodule Osp.Profile do
     %{
       "v" => @version,
       "name" => ship.name,
+      "nation" => ship |> Map.get(:nation) |> nation_string(),
       "gold" => ship.gold,
       "bank" => ship.bank,
       "class" => Atom.to_string(ship.class),
@@ -61,6 +63,7 @@ defmodule Osp.Profile do
     %{
       "v" => @version,
       "name" => if(is_binary(raw["name"]), do: String.slice(raw["name"], 0, 20), else: ""),
+      "nation" => raw["nation"] |> Nations.parse() |> nation_from_parse(),
       "gold" => int(raw["gold"], 0, @max_gold),
       "bank" => int(raw["bank"], 0, @max_gold),
       "class" => if(Map.has_key?(@classes, raw["class"]), do: raw["class"], else: "schaluppe"),
@@ -86,7 +89,8 @@ defmodule Osp.Profile do
 
     base = %{
       ship
-      | class: Map.fetch!(@classes, p["class"]),
+      | nation: nation_atom(p["nation"]),
+        class: Map.fetch!(@classes, p["class"]),
         upgrades: Map.new(@slots, fn {key, slot} -> {slot, p["upgrades"][key]} end),
         gold: p["gold"],
         bank: p["bank"],
@@ -97,6 +101,19 @@ defmodule Osp.Profile do
 
     stats = Ships.stats(base)
     %{base | max_hp: stats.max_hp, hp: stats.max_hp * 1.0, radius: stats.radius}
+  end
+
+  defp nation_string(nil), do: nil
+  defp nation_string(nation), do: Atom.to_string(nation)
+
+  defp nation_from_parse({:ok, nation}), do: Atom.to_string(nation)
+  defp nation_from_parse(:error), do: nil
+
+  defp nation_atom(string) do
+    case Nations.parse(string) do
+      {:ok, nation} -> nation
+      :error -> nil
+    end
   end
 
   defp int(v, lo, hi) when is_integer(v), do: v |> max(lo) |> min(hi)
