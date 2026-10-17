@@ -497,7 +497,7 @@ export class Renderer {
   // Häfen: Schutzzone, Steg zur Küste, Turm, Name
   drawPorts(state, cam, now) {
     const { ctx, scale } = this
-    for (const [, x, y, name, land, nation] of state.ports || []) {
+    for (const [, x, y, name, land, nation, progress, prot] of state.ports || []) {
       const cx = this.sx(x, cam), cy = this.sy(y, cam)
 
       ctx.beginPath()
@@ -528,7 +528,22 @@ export class Renderer {
       ctx.fillStyle = "#fef3c7"
       ctx.strokeStyle = "rgba(0,0,0,0.65)"
       ctx.lineWidth = 4
-      this.labelWithFlag("⚓ " + name, nation, cx, cy - 1.1 * scale, Math.round(0.34 * scale))
+      this.labelWithFlag("⚓ " + name + (prot ? " 🛡" : ""), nation, cx, cy - 1.1 * scale, Math.round(0.34 * scale))
+
+      // Eroberung: Fortschrittsbalken über dem Namen
+      if (typeof progress === "number") {
+        const bw = 3.2 * scale, bh = 0.2 * scale
+        const bx = cx - bw / 2, by = cy - 1.1 * scale - 0.34 * scale - 0.45 * scale
+        ctx.fillStyle = "rgba(0,0,0,0.6)"
+        ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4)
+        ctx.fillStyle = "#f87171"
+        ctx.fillRect(bx, by, (bw * progress) / 100, bh)
+        ctx.font = `700 ${Math.round(0.24 * scale)}px sans-serif`
+        ctx.fillStyle = "#fecaca"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "bottom"
+        ctx.fillText(`wird erobert ${progress} %`, cx, by - 4)
+      }
     }
   }
 

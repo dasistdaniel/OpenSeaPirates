@@ -44,13 +44,13 @@ defmodule Osp.TerritorySnapshotTest do
     snap = State.snapshot_for(st, @tok, [])
     assert snap.ports != []
 
-    for [_id, _x, _y, _name, _land, nation] = entry <- snap.ports do
-      assert length(entry) == 6
+    for [_id, _x, _y, _name, _land, nation, _progress, _protected] = entry <- snap.ports do
+      assert length(entry) == 8
       assert nation in ~w(spain england france netherlands portugal)
     end
 
     mine = Enum.find(snap.ports, fn [id | _] -> id == port.id end)
-    assert List.last(mine) == "england"
+    assert Enum.at(mine, 5) == "england"
   end
 
   test "Gebietsnation wird nur alle 500 ms neu berechnet" do

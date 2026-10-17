@@ -176,6 +176,17 @@ function handleEvent(ev) {
     const was = standing(value - delta), now = standing(value)
     if (was !== now && now === "suspicious") flash(`Die Jäger von ${n.name} suchen dich`, "#fbbf24")
     else if (was !== now && now === "wanted") flash(`${n.name} sucht dich! Häfen verweigern den Handel, Forts schießen`, "#f87171")
+  } else if (kind === "assault") {
+    flash(`${portName(ev[1])} wird angegriffen`, "#fbbf24")
+  } else if (kind === "captured") {
+    const [, portId, owner, old] = ev
+    const mine = (snaps.latest && snaps.latest.ships.find((s) => s.i === myId)?.na) === owner
+    flash(`${portName(portId)} erobert von ${NATIONS[owner] ? NATIONS[owner].name : "?"}!`, mine ? "#86efac" : "#f87171", 6000)
+    sound.play("kill", 0.6)
+  } else if (kind === "reverted") {
+    flash(`${portName(ev[1])} fällt an ${NATIONS[ev[2]] ? NATIONS[ev[2]].name : "?"} zurück`, "#fbbf24", 5000)
+  } else if (kind === "assault_end") {
+    flash(`Angriff auf ${portName(ev[1])} abgebrochen`, "#94a3b8")
   } else if (kind === "quest_done") {
     const [, id, gold, rep, nation] = ev
     const n = NATIONS[nation]
@@ -228,6 +239,12 @@ function showNationPicker(nations) {
 
 let lastTerritory = null
 let territoryTimer = null
+
+// Name eines Hafens aus dem letzten Schnappschuss (Ereignisse tragen nur die ID)
+function portName(id) {
+  const port = ((snaps.latest && snaps.latest.ports) || []).find((p) => p[0] === id)
+  return port ? port[3] : "Ein Hafen"
+}
 
 // Kurze Meldung oben in der Mitte (Gebietswechsel, Ruf, Fort)
 function flash(text, color, ms = 4000) {

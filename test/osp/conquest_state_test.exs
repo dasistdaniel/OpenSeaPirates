@@ -322,4 +322,67 @@ defmodule Osp.ConquestStateTest do
       refute Map.has_key?(Territory.all(tname), a.id)
     end
   end
+
+  describe "Schnappschuss der Eroberung" do
+    defp port_entry(snap, p), do: Enum.find(snap.ports, fn [id | _] -> id == p.id end)
+
+    test "Hafeneintrag trägt Fortschritt (gerundet) und Schutz" do
+      p = port()
+      st = scene(%{}, %{})
+
+      assert [_, _, _, _, _, "england", nil, false] =
+               port_entry(State.snapshot_for(st, @tok, []), p)
+
+      with_assault = %{
+        st
+        | assaults: %{p.id => %{progress: 41.6, last_act: 0, wave_at: 0, first_nation: :france}}
+      }
+
+      assert [_, _, _, _, _, _, 42, false] =
+               port_entry(State.snapshot_for(with_assault, @tok, []), p)
+
+      protected = %{
+        st
+        | wall_ms: 5_000,
+          captured_at: %{p.id => 4_000},
+          owners: %{p.id => :france}
+      }
+
+      assert [_, _, _, _, _, "france", nil, true] =
+               port_entry(State.snapshot_for(protected, @tok, []), p)
+
+      assert {:ok, _} = Jason.encode(State.snapshot_for(with_assault, @tok, []))
+      refute Jason.encode!(State.snapshot_for(with_assault, @tok, [])) =~ "geheimes-token"
+    end
+
+    test "die vier Ereignisse gehen als Listen hinaus" do
+      st = scene()
+      s = st.ships[@tok]
+      p = port()
+
+      events = [
+        {:assault, p.id, :england, s.x, s.y},
+        {:captured, p.id, :france, :england, 123, s.x, s.y},
+        {:reverted, p.id, :england, :france, s.x, s.y},
+        {:assault_end, p.id, s.x, s.y}
+      ]
+
+      id = p.id
+      snap = State.snapshot_for(st, @tok, events)
+
+      assert [
+               ["assault", ^id, "england", _, _],
+               ["captured", ^id, "france", "england", _, _],
+               ["reverted", ^id, "england", _, _],
+               ["assault_end", ^id, _, _]
+             ] = snap.ev
+    end
+
+    test "Ereignisse außerhalb des Umkreises werden nicht gesendet" do
+      st = scene()
+      p = port()
+      far = {:assault, p.id, :england, 5_000.0, 5_000.0}
+      assert State.snapshot_for(st, @tok, [far]).ev == []
+    end
+  end
 end

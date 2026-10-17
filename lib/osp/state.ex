@@ -982,7 +982,16 @@ defmodule Osp.State do
           balls: for({x, y, e} <- ctx.balls, near?.(x, y), do: e),
           ports:
             for p <- Ports.near(state.seed, me.x, me.y, @aoi) do
-              [p.id, p.x, p.y, p.name, p.land, Atom.to_string(port_nation(state, p))]
+              [
+                p.id,
+                p.x,
+                p.y,
+                p.name,
+                p.land,
+                Atom.to_string(port_nation(state, p)),
+                assault_progress(state, p),
+                Conquest.protected?(state, p.id)
+              ]
             end,
           loot: for({x, y, e} <- ctx.loot, near?.(x, y), do: e),
           me: %{
@@ -1071,6 +1080,14 @@ defmodule Osp.State do
     }
   end
 
+  # Fortschritt eines laufenden Angriffs für den Hafeneintrag (gerundet 0..100) oder nil
+  defp assault_progress(state, port) do
+    case state.assaults[port.id] do
+      nil -> nil
+      assault -> round(assault.progress)
+    end
+  end
+
   # Nation für Nachrichten: Name oder "" (keine)
   defp nation_string(nil), do: ""
   defp nation_string(nation), do: Atom.to_string(nation)
@@ -1096,6 +1113,20 @@ defmodule Osp.State do
 
   defp event_entry({:fort_warn, port_id, player_id, x, y}),
     do: {x, y, ["fort_warn", port_id, public_id(player_id), r2(x), r2(y)]}
+
+  defp event_entry({:assault, port_id, owner, x, y}),
+    do: {x, y, ["assault", port_id, Atom.to_string(owner), r2(x), r2(y)]}
+
+  defp event_entry({:captured, port_id, new_owner, old_owner, _since, x, y}),
+    do:
+      {x, y,
+       ["captured", port_id, Atom.to_string(new_owner), Atom.to_string(old_owner), r2(x), r2(y)]}
+
+  defp event_entry({:reverted, port_id, back, _old, x, y}),
+    do: {x, y, ["reverted", port_id, Atom.to_string(back), r2(x), r2(y)]}
+
+  defp event_entry({:assault_end, port_id, x, y}),
+    do: {x, y, ["assault_end", port_id, r2(x), r2(y)]}
 
   defp event_entry({:rep, id, nation, delta, value, x, y}),
     do: {x, y, ["rep", public_id(id), Atom.to_string(nation), delta, value, r2(x), r2(y)]}
