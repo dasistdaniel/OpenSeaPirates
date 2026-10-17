@@ -9,7 +9,7 @@ import { Minimap } from "./minimap.js"
 import { Sound } from "./audio.js"
 import { SPRITE_COLORS } from "./minimap.js"
 import { Waypoints } from "./waypoints.js"
-import { NATIONS } from "./nations.js"
+import { NATIONS, standing } from "./nations.js"
 import { Shop } from "./shop.js"
 
 const NAME_KEY = "osp-name"
@@ -144,7 +144,7 @@ function splinters(x, y, n, life = 1100) {
 // --- Ereignisse vom Server: Effekte und Ton -----------------------------------------------
 function handleEvent(ev) {
   const kind = ev[0]
-  const nm = (id) => names.get(id) || "Unbekannt"
+  const nm = (id) => names.get(id) || (String(id).startsWith("fort:") ? "Fort" : "Unbekannt")
 
   if (kind === "fire") {
     const [, id, , x, y] = ev
@@ -164,6 +164,20 @@ function handleEvent(ev) {
     splinters(x, y, 12, 5200)
     renderer.killFeed(`${killer ? nm(killer) : "Riff"} ⚓ ${nm(victim)}`, killer === myId || victim === myId)
     sound.play("kill", 1)
+  } else if (kind === "rep") {
+    const [, id, nation, delta, value, x, y] = ev
+    const n = NATIONS[nation]
+    if (id !== myId || !n) return
+    renderer.effect({
+      t: "text", x, y: y - 0.6, life: 1400,
+      text: `Ruf ${n.name} ${delta > 0 ? "+" : "−"}${Math.abs(delta)}`,
+      color: delta > 0 ? "#86efac" : "#fca5a5",
+    })
+    const was = standing(value - delta), now = standing(value)
+    if (was !== now && now === "suspicious") flash(`Die Jäger von ${n.name} suchen dich`, "#fbbf24")
+    else if (was !== now && now === "wanted") flash(`${n.name} sucht dich! Häfen verweigern den Handel, Forts schießen`, "#f87171")
+  } else if (kind === "fort_warn") {
+    if (ev[2] === myId) flash("Das Fort eröffnet das Feuer!", "#f87171")
   } else if (kind === "rake") {
     renderer.effect({ t: "text", x: ev[1], y: ev[2] - 0.4, life: 1000, text: "Längsfeuer!", color: "#fb923c" })
   } else if (kind === "splash") {
@@ -205,18 +219,24 @@ function showNationPicker(nations) {
 
 let lastTerritory = null
 let territoryTimer = null
+
+// Kurze Meldung oben in der Mitte (Gebietswechsel, Ruf, Fort)
+function flash(text, color, ms = 4000) {
+  const el = $("territory")
+  el.textContent = text
+  el.style.color = color
+  el.hidden = false
+  clearTimeout(territoryTimer)
+  territoryTimer = setTimeout(() => (el.hidden = true), ms)
+}
+
 function territoryChanged(tn) {
   if (tn === lastTerritory) return
   const first = lastTerritory === null
   lastTerritory = tn
   const nation = NATIONS[tn]
   if (first || !nation) return
-  const el = $("territory")
-  el.textContent = `Du betrittst ${nation.adjective} Gewässer`
-  el.style.color = nation.color
-  el.hidden = false
-  clearTimeout(territoryTimer)
-  territoryTimer = setTimeout(() => (el.hidden = true), 4000)
+  flash(`Du betrittst ${nation.adjective} Gewässer`, nation.color)
 }
 
 // --- Hilfe, Lautstärke -------------------------------------------------------------------

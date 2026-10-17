@@ -2,7 +2,7 @@
 
 const PI = Math.PI
 import { SPRITE_COLORS as PLAYER_COLORS } from "./minimap.js"
-import { NATIONS, flagImage } from "./nations.js"
+import { NATIONS, NATION_ORDER, STANDING_COLOR, STANDING_LABEL, flagImage, signed, standing } from "./nations.js"
 
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // Standard: so viele Welteinheiten sind horizontal sichtbar
@@ -635,6 +635,12 @@ export class Renderer {
       if (terr) {
         ctx.fillStyle = terr.color
         ctx.fillText("Gewässer: " + terr.name, cx, cy + 60 * u)
+        const value = state.me.rp && state.me.rp[NATION_ORDER.indexOf(state.me.tn)]
+        if (typeof value === "number") {
+          const st = standing(value)
+          ctx.fillStyle = STANDING_COLOR[st]
+          ctx.fillText(`Ruf ${signed(value)} · ${STANDING_LABEL[st]}`, cx, cy + 73 * u)
+        }
       }
     }
 

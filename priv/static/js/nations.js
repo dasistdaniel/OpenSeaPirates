@@ -20,3 +20,21 @@ export function flagImage(nation) {
   const im = flags[nation]
   return im.complete && im.naturalWidth ? im : null
 }
+
+// Reihenfolge wie `Osp.Nations.all/0` (so stehen die Ruf-Werte in `me.rp`)
+export const NATION_ORDER = Object.keys(NATIONS)
+
+// Rufstufen wie `Osp.Reputation.standing/1`: Gesucht <= -40, Misstrauisch <= -10, Freund >= 30
+export function standing(value) {
+  if (value <= -40) return "wanted"
+  if (value <= -10) return "suspicious"
+  if (value >= 30) return "friend"
+  return "neutral"
+}
+
+export const STANDING_LABEL = { wanted: "Gesucht", suspicious: "Misstrauisch", neutral: "Neutral", friend: "Freund" }
+export const STANDING_COLOR = { wanted: "#f87171", suspicious: "#fbbf24", neutral: "#94a3b8", friend: "#86efac" }
+
+export function signed(n) {
+  return (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n)
+}

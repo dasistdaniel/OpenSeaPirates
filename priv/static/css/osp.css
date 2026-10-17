@@ -370,3 +370,11 @@ kbd {
   pointer-events: none;
 }
 #territory[hidden] { display: none; }
+
+/* --- Ruf im Hafen ---------------------------------------------------------------------- */
+.reps { display: grid; gap: 4px; margin-top: 8px; font-size: 13px; }
+.reps .rep { display: flex; align-items: center; gap: 8px; }
+.reps img { width: 18px; height: 12px; image-rendering: pixelated; }
+.reps small { color: var(--muted); }
+.hostile { padding: 16px 20px 24px; }
+.hostile h3 { color: #fca5a5; margin-top: 0; }
