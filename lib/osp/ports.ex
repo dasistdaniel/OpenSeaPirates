@@ -64,6 +64,26 @@ defmodule Osp.Ports do
     end
   end
 
+  @doc """
+  Hafen zu einer ID (`"port:cx,cy"`) oder `nil` bei Unsinn, ungültiger Form oder Chunk ohne Hafen.
+  Prüft die Form mit einem festen Muster und erzeugt keine Atome.
+  """
+  @spec by_id(integer(), term()) :: map() | nil
+  def by_id(seed, id) when is_binary(id) do
+    case Regex.run(~r/^port:(-?\d{1,7}),(-?\d{1,7})$/, id) do
+      [_, cx, cy] ->
+        case in_chunk(seed, String.to_integer(cx), String.to_integer(cy)) do
+          %{id: ^id} = port -> port
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def by_id(_seed, _id), do: nil
+
   @doc "Alle Häfen, deren Ankerplatz höchstens `r` WE von `(x, y)` entfernt ist."
   @spec near(integer(), number(), number(), number()) :: [map()]
   def near(seed, x, y, r) do
