@@ -165,4 +165,161 @@ defmodule Osp.ConquestStateTest do
       assert later.wall_ms >= first.wall_ms
     end
   end
+
+  describe "Rückfall im Spielzustand" do
+    defp edge_port_state(wall_ms, rev_at \\ 0) do
+      a =
+        Osp.Ports.near(@seed, 0.0, 0.0, 1500.0)
+        |> Enum.find(&(Osp.Conquest.neighbors(@seed, &1) != []))
+
+      ns = Osp.Conquest.neighbors(@seed, a)
+
+      x =
+        Enum.find(
+          Nations.all(),
+          &(&1 not in Enum.map([a | ns], fn p -> Nations.base_of_port(@seed, p) end))
+        )
+
+      st = State.new(@seed, 0, territory: %{a.id => %{owner: x, since: 0}})
+      {%{st | wall_ms: wall_ms, rev_at: rev_at}, a, x}
+    end
+
+    test "Randlage nach 31 Minuten: Eintrag entfernt, Ereignis, Ausgangsnation gilt wieder" do
+      {st, a, x} = edge_port_state(31 * 60_000)
+      {st, ev} = State.tick(st, 25)
+      assert st.owners == %{} and st.captured_at == %{}
+      back = Nations.base_of_port(@seed, a)
+      assert Enum.any?(ev, &match?({:reverted, _, ^back, ^x, _, _}, &1))
+      assert State.port_nation(st, a) == back
+    end
+
+    test "geprüft wird nur alle 60 s, nicht jeden Schritt" do
+      {st, _a, _x} = edge_port_state(31 * 60_000, 31 * 60_000 - 5_000)
+      {st, ev} = State.tick(st, 25)
+      assert map_size(st.owners) == 1
+      refute Enum.any?(ev, &match?({:reverted, _, _, _, _, _}, &1))
+
+      {st, ev} = State.tick(%{st | wall_ms: st.rev_at + 60_001}, 25)
+      assert st.owners == %{}
+      assert Enum.any?(ev, &match?({:reverted, _, _, _, _, _}, &1))
+    end
+
+    test "29 Minuten: bleibt; Uhr springt zurück: kein Absturz, kein Rückfall" do
+      {st, _, _} = edge_port_state(29 * 60_000)
+      {st, _} = State.tick(st, 25)
+      assert map_size(st.owners) == 1
+
+      {st2, _, _} = edge_port_state(31 * 60_000, 40 * 60_000)
+      {st2, ev} = State.tick(st2, 25)
+      assert map_size(st2.owners) == 1 and st2.rev_at == 31 * 60_000
+      refute Enum.any?(ev, &match?({:reverted, _, _, _, _, _}, &1))
+    end
+  end
+
+  describe "Speichern über die Welt" do
+    defp tmp_dir do
+      dir = Path.join(System.tmp_dir!(), "osp_conq_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf(dir) end)
+      dir
+    end
+
+    defp start_world_with(tname, id) do
+      start_supervised!({World, id: id, seed: @seed, bots: 0, tick_ms: 25, territory: tname},
+        id: id
+      )
+    end
+
+    defp wait_until(id, fun, tries \\ 80) do
+      cond do
+        fun.(World.state(id)) ->
+          :ok
+
+        tries == 0 ->
+          flunk("Bedingung nicht erreicht")
+
+        true ->
+          assert_receive {:osp_snap, _}, 1_000
+          wait_until(id, fun, tries - 1)
+      end
+    end
+
+    test "Eroberung im laufenden Spiel landet in der Datei; Neustart behält sie, Rückfall löscht sie" do
+      dir = tmp_dir()
+      tname = :"terr_c_#{System.unique_integer([:positive])}"
+      start_supervised!({Territory, name: tname, dir: dir}, id: tname)
+
+      id = "wc" <> Integer.to_string(System.unique_integer([:positive]))
+      start_world_with(tname, id)
+
+      p = port()
+      tok = "tok-conq-" <> Integer.to_string(System.unique_integer([:positive])) <> "-x"
+      {:ok, _} = World.join(id, tok, "Anna", self(), nation: :france)
+
+      # Angriff bei 99,9 % mit Angreifer in der Zone, ohne Verteidiger
+      :sys.replace_state(GenServer.whereis(World.via(id)), fn w ->
+        {cx, cy} = {:math.cos(p.land), :math.sin(p.land)}
+
+        sim =
+          State.update_ship(
+            w.sim,
+            tok,
+            &%{&1 | x: p.x - cx * 5.0, y: p.y - cy * 5.0, speed: 0.0, invuln_until: 0}
+          )
+
+        t = sim.time
+
+        sim = %{
+          sim
+          | assaults: %{
+              p.id => %{
+                progress: 99.99,
+                last_act: t,
+                wave_at: t + 1_000_000,
+                first_nation: :france
+              }
+            }
+        }
+
+        %{w | sim: sim}
+      end)
+
+      wait_until(id, &Map.has_key?(&1.owners, p.id))
+      assert World.state(id).owners[p.id] == :france
+
+      :ok = Territory.flush(tname)
+      saved = dir |> Path.join("territory.json") |> File.read!() |> Jason.decode!()
+      assert saved["ports"][p.id]["owner"] == "france"
+      assert saved["ports"][p.id]["since"] > 0
+
+      # Neustart: neuer Territory-Prozess und neue Welt mit derselben Datei
+      stop_supervised!(id)
+      stop_supervised!(tname)
+      t2 = :"terr_c2_#{System.unique_integer([:positive])}"
+      start_supervised!({Territory, name: t2, dir: dir}, id: t2)
+      id2 = "wc2" <> Integer.to_string(System.unique_integer([:positive]))
+      start_world_with(t2, id2)
+      assert World.state(id2).owners[p.id] == :france
+      assert World.state(id2).captured_at[p.id] == saved["ports"][p.id]["since"]
+    end
+
+    test "Rückfall löscht den Eintrag aus dem Speicher" do
+      dir = tmp_dir()
+      tname = :"terr_r_#{System.unique_integer([:positive])}"
+      start_supervised!({Territory, name: tname, dir: dir}, id: tname)
+
+      {_st, a, x} = edge_port_state(0)
+      Territory.put(a.id, x, 0, tname)
+      assert Map.has_key?(Territory.all(tname), a.id)
+
+      id = "wr" <> Integer.to_string(System.unique_integer([:positive]))
+      start_world_with(tname, id)
+      {:ok, _} = World.join(id, "tok-rev-aaaa-1", "A", self(), nation: :france)
+
+      # die echte Wanduhr (nach 1970 gemessen) liegt weit über 30 Minuten nach `since: 0`
+      wait_until(id, &(not Map.has_key?(&1.owners, a.id)))
+      _ = Territory.all(tname)
+      refute Map.has_key?(Territory.all(tname), a.id)
+    end
+  end
 end

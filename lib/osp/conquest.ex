@@ -38,6 +38,9 @@ defmodule Osp.Conquest do
   @reward_gold 300
   @reward_rep 10
   @cooldown_ms 2_000
+  @neighbor_radius 90.0
+  @revert_after_ms 1_800_000
+  @check_every_ms 60_000
 
   def radius_hit, do: @radius_hit
   def radius_zone, do: @radius_zone
@@ -266,6 +269,76 @@ defmodule Osp.Conquest do
       leaders != [] -> Enum.find(Nations.all(), &(&1 in leaders))
       true -> first
     end
+  end
+
+  # --- Rückfall --------------------------------------------------------------------------
+
+  @doc "Nachbarn eines Hafens: alle anderen Häfen im Umkreis von 90 WE."
+  @spec neighbors(integer(), map()) :: [map()]
+  def neighbors(seed, port) do
+    seed |> Ports.near(port.x, port.y, @neighbor_radius) |> Enum.reject(&(&1.id == port.id))
+  end
+
+  @doc """
+  Bleibt der Hafen sicher bei seinem Besitzer? Ja, wenn **alle** Nachbarn derselben Nation gehören (oder
+  er keine hat): Hinterland, nichts holt ihn zurück.
+  """
+  @spec stable?(integer(), map(), map()) :: boolean()
+  def stable?(seed, port, owners) do
+    own = Nations.of_port(seed, port, owners)
+    Enum.all?(neighbors(seed, port), &(Nations.of_port(seed, &1, owners) == own))
+  end
+
+  @doc """
+  Welche eroberten Häfen fallen jetzt zurück? Eintrag älter als 30 Minuten (Wanduhr, nie negativ) und
+  nicht `stable?/3`. Entschieden wird nach dem Stand am Anfang des Aufrufs, ohne Kettenwirkung
+  innerhalb eines Aufrufs.
+  """
+  @spec reversions(integer(), map(), map(), integer()) :: [String.t()]
+  def reversions(seed, owners, captured_at, wall_ms) do
+    for {id, _owner} <- owners,
+        age = max(wall_ms - Map.get(captured_at, id, 0), 0),
+        age >= @revert_after_ms,
+        port = Ports.by_id(seed, id),
+        port != nil,
+        not stable?(seed, port, owners),
+        do: id
+  end
+
+  @doc """
+  Rückfall-Prüfung einmal pro Minute Wanduhr (`state.rev_at`); springt die Uhr zurück, wird nur der
+  Merker angepasst. `{state, events}` mit `{:reverted, port_id, nation_zurück, alter_besitzer, x, y}`.
+  """
+  @spec revert_step(State.t()) :: {State.t(), list()}
+  def revert_step(%{owners: owners} = state) when map_size(owners) == 0, do: {state, []}
+
+  def revert_step(state) do
+    cond do
+      state.wall_ms < state.rev_at ->
+        {%{state | rev_at: state.wall_ms}, []}
+
+      state.rev_at != 0 and state.wall_ms - state.rev_at < @check_every_ms ->
+        {state, []}
+
+      true ->
+        ids = reversions(state.seed, state.owners, state.captured_at, state.wall_ms)
+        state = %{state | rev_at: state.wall_ms}
+        Enum.reduce(ids, {state, []}, fn id, {st, ev} -> revert(st, ev, id) end)
+    end
+  end
+
+  defp revert(state, events, port_id) do
+    port = Ports.by_id(state.seed, port_id)
+    old = Map.fetch!(state.owners, port_id)
+    back = Nations.base_of_port(state.seed, port)
+
+    state = %{
+      state
+      | owners: Map.delete(state.owners, port_id),
+        captured_at: Map.delete(state.captured_at, port_id)
+    }
+
+    {state, events ++ [{:reverted, port_id, back, old, port.x, port.y}]}
   end
 
   defp dist(ax, ay, bx, by), do: :math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by))

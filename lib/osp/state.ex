@@ -60,6 +60,7 @@ defmodule Osp.State do
             owners: %{},
             captured_at: %{},
             assaults: %{},
+            rev_at: 0,
             wall_ms: 0,
             next_id: 1
 
@@ -704,7 +705,10 @@ defmodule Osp.State do
     {state, events} = Combat.step(%{state | ships: ships}, ms)
     {state, fort_events} = Fort.step(state)
     {state, conquest_events} = Conquest.step(state, ms)
-    {expire(state), npc_events ++ events ++ fort_events ++ conquest_events ++ quest_events}
+    {state, revert_events} = Conquest.revert_step(state)
+
+    {expire(state),
+     npc_events ++ events ++ fort_events ++ conquest_events ++ revert_events ++ quest_events}
   end
 
   # Tempo- und Wendigkeitsfaktoren: Spieler aus Klasse/Upgrades, NPCs aus ihrer Art; Kettenkugel bremst

@@ -408,4 +408,87 @@ defmodule Osp.ConquestTest do
     assert st.assaults == %{}
     _ = Combat
   end
+
+  describe "Rückfall" do
+    @min 60_000
+
+    defp all_ports, do: Osp.Ports.near(@seed, 0.0, 0.0, 1500.0)
+
+    defp other_than(nations), do: Enum.find(Nations.all(), &(&1 not in nations))
+
+    test "neighbors/2: ohne den Hafen selbst, nur bis 90 WE" do
+      a = Enum.find(all_ports(), &(Conquest.neighbors(@seed, &1) != []))
+      ns = Conquest.neighbors(@seed, a)
+      refute Enum.any?(ns, &(&1.id == a.id))
+
+      assert Enum.all?(
+               ns,
+               &(:math.sqrt(:math.pow(&1.x - a.x, 2) + :math.pow(&1.y - a.y, 2)) <= 90.0)
+             )
+    end
+
+    test "stable?/3: alle Nachbarn gleicher Besitzer ja, ein anderer nein, ohne Nachbarn ja" do
+      a = Enum.find(all_ports(), &(Conquest.neighbors(@seed, &1) != []))
+      ns = Conquest.neighbors(@seed, a)
+      x = other_than(Enum.map([a | ns], &Nations.base_of_port(@seed, &1)))
+
+      all_x = Map.new([a | ns], &{&1.id, x})
+      assert Conquest.stable?(@seed, a, all_x)
+      assert Conquest.stable?(@seed, a, Map.delete(all_x, hd(ns).id)) == false
+
+      isolated = Enum.find(all_ports(), &(Conquest.neighbors(@seed, &1) == []))
+      if isolated, do: assert(Conquest.stable?(@seed, isolated, %{isolated.id => x}))
+    end
+
+    # Ein Hafen, dessen Nachbarn alle einer anderen Nation (als `x`) gehören, ist nie stabil
+    defp unstable_port do
+      Enum.find(all_ports(), &(Conquest.neighbors(@seed, &1) != []))
+    end
+
+    test "reversions/4: Randlage nach 31 Minuten ja, nach 29 nein; Binnenlage bleibt; Uhr zurück nichts" do
+      a = unstable_port()
+      ns = Conquest.neighbors(@seed, a)
+      x = other_than(Enum.map([a | ns], &Nations.base_of_port(@seed, &1)))
+
+      edge = %{a.id => x}
+      assert Conquest.reversions(@seed, edge, %{a.id => 0}, 31 * @min) == [a.id]
+      assert Conquest.reversions(@seed, edge, %{a.id => 0}, 29 * @min) == []
+
+      inner = Map.new([a | ns], &{&1.id, x})
+      since = Map.new([a | ns], &{&1.id, 0})
+      refute a.id in Conquest.reversions(@seed, inner, since, 500 * @min)
+
+      assert Conquest.reversions(@seed, edge, %{a.id => 10_000_000}, 5_000) == []
+    end
+
+    test "keine Kette im selben Durchlauf: entschieden wird nach dem Stand am Anfang" do
+      # a hat mindestens zwei Nachbarn; b hat nur a als Nachbarn
+      pair =
+        Enum.find_value(all_ports(), fn a ->
+          ns = Conquest.neighbors(@seed, a)
+
+          Enum.find_value(ns, fn b ->
+            if length(ns) >= 2 and Enum.map(Conquest.neighbors(@seed, b), & &1.id) == [a.id],
+              do: {a, b}
+          end)
+        end)
+
+      assert {a, b} = pair
+      others = Conquest.neighbors(@seed, a) |> Enum.reject(&(&1.id == b.id))
+      x = other_than(Enum.map([a, b | others], &Nations.base_of_port(@seed, &1)))
+
+      owners = %{a.id => x, b.id => x}
+      since = %{a.id => 0, b.id => 0}
+
+      # a hat Nachbarn mit anderer Nation: instabil; b hat nur a (gleicher Besitzer): stabil
+      first = Conquest.reversions(@seed, owners, since, 40 * @min)
+      assert first == [a.id]
+
+      # nächster Durchlauf mit dem neuen Stand: jetzt ist b allein und instabil
+      second =
+        Conquest.reversions(@seed, Map.delete(owners, a.id), Map.delete(since, a.id), 41 * @min)
+
+      assert second == [b.id]
+    end
+  end
 end

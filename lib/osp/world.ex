@@ -97,6 +97,7 @@ defmodule Osp.World do
       pids: %{},
       refs: %{},
       pending: [],
+      territory: Keyword.get(opts, :territory, Territory),
       max_players: Keyword.get(opts, :max_players, 60),
       saved: %{},
       ticks: 0,
@@ -225,6 +226,7 @@ defmodule Osp.World do
     sim = %{state.sim | wall_ms: System.os_time(:millisecond)}
     {sim, events} = State.tick(sim, state.tick_ms)
     state = autosave(state, state.sim, sim)
+    persist_territory(state, sim, events)
     state = %{state | sim: sim}
     # Ereignisse aus Eingaben (Feuer, Powerup) gehen mit dem nächsten Takt an alle
     send_snapshots(state, state.pending ++ events)
@@ -291,6 +293,27 @@ defmodule Osp.World do
         Map.new(Osp.Reputation.start(nation), fn {n, v} -> {Atom.to_string(n), v} end)
       )
     end
+  end
+
+  # Eroberungen und Rückfälle in den Territory-Speicher schreiben (Datei territory.json)
+  defp persist_territory(state, sim, events) do
+    for event <- events do
+      case event do
+        {:captured, port_id, _winner, _old, wall_ms, _x, _y} ->
+          case Map.fetch(sim.owners, port_id) do
+            {:ok, owner} -> Territory.put(port_id, owner, wall_ms, state.territory)
+            :error -> Territory.delete(port_id, state.territory)
+          end
+
+        {:reverted, port_id, _back, _old, _x, _y} ->
+          Territory.delete(port_id, state.territory)
+
+        _other ->
+          :ok
+      end
+    end
+
+    :ok
   end
 
   # --- Spielstände speichern ---------------------------------------------------------
