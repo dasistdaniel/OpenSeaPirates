@@ -12,6 +12,7 @@ defmodule Osp.State do
 
   alias Osp.{
     Combat,
+    Conquest,
     Director,
     Fort,
     Hunter,
@@ -58,6 +59,7 @@ defmodule Osp.State do
             # `wall_ms` setzt die Hülle (`Osp.World`) je Takt
             owners: %{},
             captured_at: %{},
+            assaults: %{},
             wall_ms: 0,
             next_id: 1
 
@@ -624,7 +626,10 @@ defmodule Osp.State do
   def safe_at?(state, x, y, ship) do
     state.seed
     |> Ports.near(x, y, Ports.safe_radius())
-    |> Enum.any?(fn port -> not hostile_to?(ship, port_nation(state, port)) end)
+    |> Enum.any?(fn port ->
+      not (hostile_to?(ship, port_nation(state, port)) or
+             (Map.has_key?(state.assaults, port.id) and Conquest.attacker?(state, ship, port)))
+    end)
   end
 
   @doc "Wie `safe_at?/4` an der Position des Schiffs selbst."
@@ -698,7 +703,8 @@ defmodule Osp.State do
 
     {state, events} = Combat.step(%{state | ships: ships}, ms)
     {state, fort_events} = Fort.step(state)
-    {expire(state), npc_events ++ events ++ fort_events ++ quest_events}
+    {state, conquest_events} = Conquest.step(state, ms)
+    {expire(state), npc_events ++ events ++ fort_events ++ conquest_events ++ quest_events}
   end
 
   # Tempo- und Wendigkeitsfaktoren: Spieler aus Klasse/Upgrades, NPCs aus ihrer Art; Kettenkugel bremst

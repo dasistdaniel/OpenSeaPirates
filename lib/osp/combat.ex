@@ -10,7 +10,7 @@ defmodule Osp.Combat do
     * `{:splash, x, y}`, `{:respawn, id, x, y}`, `{:loot, id, gold, x, y}` (Beute eingesammelt)
   """
 
-  alias Osp.{Ports, Reputation, Ships, State, Terrain}
+  alias Osp.{Conquest, Ports, Reputation, Ships, State, Terrain}
 
   # Lange Ladezeit, dafür kräftige Salven: jede Breitseite zählt, Dauerkreisen lohnt nicht
   @reload_ms 3_000
@@ -53,12 +53,19 @@ defmodule Osp.Combat do
         cond do
           Map.fetch!(s, key) > 0 -> {state, []}
           State.safe_for?(state, s) -> {state, []}
-          true -> shoot(state, s, side, key)
+          true -> shoot_and_provoke(state, s, side, key)
         end
 
       _ ->
         {state, []}
     end
+  end
+
+  # Eine Breitseite nahe einem fremden Hafen ist eine Angriffshandlung (Eroberung)
+  defp shoot_and_provoke(state, s, side, key) do
+    {state, events} = shoot(state, s, side, key)
+    {state, more} = Conquest.hostile_act(state, s.id, s.x, s.y)
+    {state, events ++ more}
   end
 
   defp shoot(state, s, side, key) do
@@ -359,10 +366,13 @@ defmodule Osp.Combat do
     {state, rep_events} = punish(state, s, killer)
     state = State.quest_kill(state, killer, s)
 
+    {state, conquest_events} =
+      if s.kind == :hunter, do: Conquest.hostile_act(state, killer, s.x, s.y), else: {state, []}
+
     {state, quest_events} =
       if s.kind == :player, do: State.fail_deliveries(state, id), else: {state, []}
 
-    {state, [{:kill, killer, id, s.x, s.y}] ++ rep_events ++ quest_events}
+    {state, [{:kill, killer, id, s.x, s.y}] ++ rep_events ++ quest_events ++ conquest_events}
   end
 
   # Ruf: Wer ein Schiff einer Nation versenkt, verliert Ruf bei dieser Nation (Händler 8, Jäger 5) –

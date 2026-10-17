@@ -15,7 +15,7 @@ defmodule Osp.Fort do
   Zustand je Hafen in `state.forts` (`%{port_id => %{cooldown_until, seen, shots, alarm_until}}`).
   """
 
-  alias Osp.{Ports, Reputation, Spawn, State}
+  alias Osp.{Conquest, Ports, Reputation, Spawn, State}
 
   @range 8.0
   @warn_ms 1_500
@@ -66,13 +66,22 @@ defmodule Osp.Fort do
   # Alle Paare {Hafen, Spieler}: Spieler lebt, ist nicht angedockt, ist in Reichweite und bei der Nation
   # dieses Hafens Gesucht
   defp hostile_pairs(state) do
+    assaults? = state.assaults != %{}
+
     for {_id, p} <- state.ships,
         p.kind == :player and p.alive? and p.docked == nil,
-        wanted_somewhere?(p),
+        assaults? or wanted_somewhere?(p),
         port <- Ports.near(state.seed, p.x, p.y, @range),
-        Reputation.standing(State.rep_of(p, State.port_nation(state, port))) == :wanted,
+        wanted_at?(state, p, port) or assault_attacker?(state, p, port),
         do: {port, p}
   end
+
+  defp wanted_at?(state, p, port),
+    do: Reputation.standing(State.rep_of(p, State.port_nation(state, port))) == :wanted
+
+  # Im Angriff schießt das Fort auf alle Fremden, nicht nur auf Gesuchte
+  defp assault_attacker?(state, p, port),
+    do: Map.has_key?(state.assaults, port.id) and Conquest.attacker?(state, p, port)
 
   defp wanted_somewhere?(p),
     do: Enum.any?(p.rep, fn {_n, v} -> Reputation.standing(v) == :wanted end)
@@ -133,7 +142,8 @@ defmodule Osp.Fort do
         in_zone? = dist(port.x, port.y, p.x, p.y) <= Ports.safe_radius()
         pause_over? = Map.get(f.alarm_until, p.id, 0) <= t
 
-        if in_zone? and pause_over? do
+        # Alarm (zwei Jäger) nur für Gesuchte; im Angriff sorgen die Verteidiger-Wellen dafür
+        if in_zone? and pause_over? and wanted_at?(st, p, port) do
           st = alarm(st, port, p)
           {st, %{f | alarm_until: Map.put(f.alarm_until, p.id, t + @alarm_pause_ms)}, ev}
         else
@@ -180,13 +190,17 @@ defmodule Osp.Fort do
 
       fort = %{
         fort
-        | cooldown_until: t + @cooldown_ms,
+        | cooldown_until: t + cooldown(state, port),
           shots: Map.update(fort.shots, target.id, 1, &(&1 + 1))
       }
 
       {state, fort, [{:fire, ball.owner, :fort, port.x, port.y}]}
     end
   end
+
+  # Im Angriff lädt das Fort schneller nach
+  defp cooldown(state, port),
+    do: if(Map.has_key?(state.assaults, port.id), do: Conquest.cooldown_ms(), else: @cooldown_ms)
 
   # Zwei Jäger der Nation des Hafens 10–20 WE um den Spieler
   defp alarm(state, port, player) do

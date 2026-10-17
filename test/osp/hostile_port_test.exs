@@ -70,7 +70,11 @@ defmodule Osp.HostilePortTest do
     test "Gesuchter darf feuern und wird verletzt, ein Unbescholtener nicht" do
       {wanted, _} = scene(-60)
       {st, ev} = State.fire(wanted, @tok, :right)
-      assert [{:fire, @tok, :right, _, _}] = ev
+
+      assert {:fire, @tok, :right, wanted_x, wanted_y} =
+               Enum.find(ev, &match?({:fire, _, _, _, _}, &1))
+
+      assert is_number(wanted_x) and is_number(wanted_y)
       assert length(st.balls) == 3
 
       {hurt, _} = Combat.hurt(wanted, @tok, 2.0, "npc-x", 0.0, 0.0)
