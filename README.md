@@ -18,7 +18,10 @@ dieses Repos.
 - **Ruf:** je Nation −100..+100; Abschüsse von Händlern und Jägern senken ihn (Notwehr gegen
   angreifende Jäger nicht). Jäger greifen ab Ruf −10 an. Bei Gesucht (≤ −40) sperrt der Hafen Shop und
   Bank (nur Wiedergutmachung gegen Gold), die Schutzzone entfällt, das Fort schießt und zwei Jäger
-  kommen. Quests und Eroberung sind geplant:
+  kommen.
+- **Quests:** Häfen bieten Lieferungen und Jagden an (bis zu 2 aktiv, 30 Minuten Spielzeit), Quest-Log
+  mit grober Richtung, Gold und Ruf als Belohnung; bei Gesucht ist ein Auftrag die Wiedergutmachung.
+  Die Eroberung von Häfen ist geplant:
   `docs/superpowers/specs/2026-10-17-nationen-ruf-quests-design.md`.
 - **Segeln:** WASD, drei Segelstufen (Taste S: voll, Beisegel, gerafft), Kurven kosten Fahrt.
 - **Kampf:** Breitseiten Q/E (beide Seiten: Leertaste), lange Ladezeit, Längsfeuer zählt doppelt,
@@ -57,7 +60,7 @@ Es gibt lokal kein Elixir; `./mx` synchronisiert den Quellordner auf den Server 
 und führt `mix` in einem Docker-Container aus.
 
 ```bash
-./mx test               # Tests (226)
+./mx test               # Tests (275)
 ./mx precommit          # Kompilieren (Warnungen = Fehler), Format, Tests; vor jedem Commit
 ./mx deps.update bandit # beliebige mix-Aufgaben, hier ein Abhängigkeits-Update (mix.lock kommt zurück)
 ./mx run scripts/load_test.exs    # Lasttest ohne Netzwerk (Takt-Zeit je Spielerzahl), siehe docs/performance.md
@@ -96,6 +99,7 @@ lib/osp/spawn.ex        Startpunkt 20–40 WE von anderen (rein)
 lib/osp/nations.ex      Nationen, Gebiete (Zelle + nächster Hafen), Boni (rein)
 lib/osp/reputation.ex   Ruf je Nation: Stufen, Änderungen, Rückgang (rein)
 lib/osp/fort.ex         Forts der Häfen: Warnung, Schüsse mit Vorhalt, Alarm (rein)
+lib/osp/quests.ex       Quests: Angebote aus Seed/Hafen/Zeitfenster, Fortschritt, Prüfung (rein)
 lib/osp/wander.ex       Wander-Bot, Ausweichkurs, Befreien festgefahrener NPCs (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Längsfeuer, Treffer, Tod, Beute (rein)
 lib/osp/state.ex        Reiner Weltzustand, Zeitschritt, NPC-Steuerung, Schnappschüsse, öffentliche IDs
