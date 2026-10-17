@@ -91,13 +91,21 @@ defmodule Osp.Nations do
     Enum.at(@order, idx)
   end
 
-  @doc "Nation eines Hafens (Zellnation seiner Position)."
-  @spec of_port(integer(), map()) :: atom()
-  def of_port(seed, %{x: x, y: y}), do: cell_nation(seed, x, y)
+  @doc "Ausgangsnation eines Hafens: die Zellnation seiner Position (ohne Eroberung)."
+  @spec base_of_port(integer(), map()) :: atom()
+  def base_of_port(seed, %{x: x, y: y}), do: cell_nation(seed, x, y)
+
+  @doc """
+  Nation eines Hafens: ein Eintrag in `owners` (`%{hafen_id => nation}`, erobert) gewinnt, sonst die
+  Ausgangsnation (`base_of_port/2`).
+  """
+  @spec of_port(integer(), map(), %{optional(String.t()) => atom()}) :: atom()
+  def of_port(seed, %{id: id} = port, owners \\ %{}),
+    do: Map.get(owners, id) || base_of_port(seed, port)
 
   @doc "Nation des Gebiets an `(x, y)`: die des nächsten Hafens, sonst die Zellnation."
-  @spec at(integer(), number(), number()) :: atom()
-  def at(seed, x, y) do
+  @spec at(integer(), number(), number(), %{optional(String.t()) => atom()}) :: atom()
+  def at(seed, x, y, owners \\ %{}) do
     near =
       Enum.find_value(@radii, fn r ->
         case Ports.near(seed, x, y, r) do
@@ -106,15 +114,21 @@ defmodule Osp.Nations do
         end
       end)
 
-    if near, do: of_port(seed, near), else: cell_nation(seed, x, y)
+    if near, do: of_port(seed, near, owners), else: cell_nation(seed, x, y)
   end
 
   @doc """
   Nächster Hafen der Nation `nation` im Umkreis `max_radius` WE um `{x, y}` oder `nil`. Sucht Ringe
   von Chunks nach außen und bricht beim ersten Ring mit Treffer ab.
   """
-  @spec nearest_port_of(integer(), atom(), {number(), number()}, number()) :: map() | nil
-  def nearest_port_of(seed, nation, {x, y}, max_radius) do
+  @spec nearest_port_of(
+          integer(),
+          atom(),
+          {number(), number()},
+          number(),
+          %{optional(String.t()) => atom()}
+        ) :: map() | nil
+  def nearest_port_of(seed, nation, {x, y}, max_radius, owners \\ %{}) do
     {cx0, cy0} = Terrain.chunk_of(x, y)
     max_ring = ceil(max_radius / Terrain.chunk_size()) + 1
 
@@ -125,7 +139,7 @@ defmodule Osp.Nations do
             max(abs(cx - cx0), abs(cy - cy0)) == ring,
             port = Ports.in_chunk(seed, cx, cy),
             port != nil,
-            of_port(seed, port) == nation,
+            of_port(seed, port, owners) == nation,
             d = dist(port, x, y),
             d <= max_radius,
             do: {d, port}

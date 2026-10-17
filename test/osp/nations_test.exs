@@ -75,4 +75,38 @@ defmodule Osp.NationsTest do
     assert Nations.bonus(:portugal) == %{neutral | speed: 1.05}
     assert Nations.bonus(:netherlands) == %{neutral | repair: 0.75}
   end
+
+  describe "Besitzer-Überschreibungen (Eroberung)" do
+    test "of_port/3: Eintrag gewinnt, sonst Zellnation; base_of_port/2 ignoriert Überschreibungen" do
+      port = some_port()
+      base = Nations.of_port(@seed, port)
+      other = Enum.find(Nations.all(), &(&1 != base))
+
+      assert Nations.of_port(@seed, port, %{port.id => other}) == other
+      assert Nations.of_port(@seed, port, %{"port:0,0" => other}) == base
+      assert Nations.of_port(@seed, port, %{}) == base
+      assert Nations.base_of_port(@seed, port) == base
+    end
+
+    test "at/4 am Anker folgt dem Besitzer" do
+      port = some_port()
+      other = Enum.find(Nations.all(), &(&1 != Nations.of_port(@seed, port)))
+      assert Nations.at(@seed, port.x + 0.5, port.y, %{port.id => other}) == other
+      assert Nations.at(@seed, port.x + 0.5, port.y) == Nations.of_port(@seed, port)
+    end
+
+    test "nearest_port_of/5: der überschriebene Hafen zählt zur neuen Nation, nicht mehr zur alten" do
+      port = some_port()
+      old = Nations.of_port(@seed, port)
+      new = Enum.find(Nations.all(), &(&1 != old))
+      owners = %{port.id => new}
+      origin = {port.x, port.y}
+
+      assert %{id: id} = Nations.nearest_port_of(@seed, new, origin, 1.0, owners)
+      assert id == port.id
+
+      near_old = Nations.nearest_port_of(@seed, old, origin, 1.0, owners)
+      assert near_old == nil
+    end
+  end
 end

@@ -9,6 +9,7 @@ defmodule Osp.Application do
       [
         Osp.PortCache,
         Osp.Profiles,
+        Osp.Territory,
         {Registry, keys: :unique, name: Osp.WorldRegistry},
         {DynamicSupervisor, name: Osp.WorldSupervisor, strategy: :one_for_one}
       ] ++ server() ++ main_world()
