@@ -332,7 +332,7 @@ defmodule Osp.HarborTest do
   test "Schnappschuss: Häfen in der Nähe, Hafenstatus und Munition" do
     {st, p} = at_port()
     snap = State.snapshot_for(st, "a", [])
-    assert Enum.any?(snap.ports, fn [id, _, _, _, _] -> id == p.id end)
+    assert Enum.any?(snap.ports, fn [id, _, _, _, _, _] -> id == p.id end)
     assert snap.me.np == p.name and snap.me.dk == nil
     assert %{c: 0, f: 0} = snap.me.am
     assert snap.me.b == 0 and snap.me.as == "ball"

@@ -125,6 +125,7 @@ defmodule Osp.State do
       name: name,
       kind: kind,
       nation: nil,
+      terr: nil,
       class: class,
       upgrades: upgrades,
       color: color,
@@ -283,7 +284,11 @@ defmodule Osp.State do
     {lo, hi} = if kind == :merchant, do: {50, 120}, else: {40, 100}
     bounty = lo + round(r * (hi - lo)) + bonus
 
-    ship = %{new_ship(id, name, kind, x, y, heading) | bounty: bounty}
+    ship = %{
+      new_ship(id, name, kind, x, y, heading)
+      | bounty: bounty,
+        nation: Nations.at(state.seed, x, y)
+    }
 
     %{
       put_ship(%{state | rng: rng, next_id: state.next_id + 1}, id, ship)
@@ -410,6 +415,7 @@ defmodule Osp.State do
   defp step(state, ms) do
     state = %{state | time: state.time + ms}
     state = turn_wind(state)
+    state = update_territory(state)
     {state, npc_events} = think_npcs(state)
     state = Director.step(state)
     solid? = fn x, y -> Terrain.land?(state.seed, x, y) end
@@ -447,6 +453,23 @@ defmodule Osp.State do
     stats = Ships.stats(ship)
     sail = Ships.sail(ship.sail)
     {stats.speed_mult * sail.speed, stats.turn_mult * sail.turn}
+  end
+
+  # Gebietsnation unter jedem lebenden Spieler: nur alle 500 ms (die Suche nach dem nächsten Hafen
+  # ist deutlich teurer als ein Zeitschritt)
+  defp update_territory(%{time: t} = state) when rem(t, 500) != 0, do: state
+
+  defp update_territory(state) do
+    ships =
+      Map.new(state.ships, fn
+        {id, %{kind: :player, alive?: true} = s} ->
+          {id, %{s | terr: Nations.at(state.seed, s.x, s.y)}}
+
+        other ->
+          other
+      end)
+
+    %{state | ships: ships}
   end
 
   defp turn_wind(%{time: t, wind_at: at} = state) when t >= at,
@@ -623,7 +646,7 @@ defmodule Osp.State do
           balls: for({x, y, e} <- ctx.balls, near?.(x, y), do: e),
           ports:
             for p <- Ports.near(state.seed, me.x, me.y, @aoi) do
-              [p.id, p.x, p.y, p.name, p.land]
+              [p.id, p.x, p.y, p.name, p.land, Atom.to_string(Nations.of_port(state.seed, p))]
             end,
           loot: for({x, y, e} <- ctx.loot, near?.(x, y), do: e),
           me: %{
@@ -632,6 +655,7 @@ defmodule Osp.State do
             am: %{c: Map.get(me.ammo, :chain, 0), f: Map.get(me.ammo, :fire, 0)},
             as: Atom.to_string(me.ammo_sel),
             sa: Atom.to_string(me.sail),
+            tn: nation_string(me.terr),
             dk: me.docked && me.docked.name,
             np:
               case Ports.dockable(state.seed, me.x, me.y) do
@@ -683,9 +707,14 @@ defmodule Osp.State do
       dk: s.docked != nil,
       bu: s.burn_until > t,
       sl: s.slow_until > t,
-      sa: Atom.to_string(s.sail)
+      sa: Atom.to_string(s.sail),
+      na: nation_string(s.nation)
     }
   end
+
+  # Nation für Nachrichten: Name oder "" (keine)
+  defp nation_string(nil), do: ""
+  defp nation_string(nation), do: Atom.to_string(nation)
 
   # Ereignisse als kurze JSON-Arrays mit Position (für den Umkreis-Filter)
   defp event_entry({:fire, id, side, x, y}),
