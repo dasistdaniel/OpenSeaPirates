@@ -87,6 +87,7 @@ Betreiber (WebSocket-Upgrade auf `/ws` durchreichen). Konfiguration über `.env`
 ./deploy          # Quellen syncen, bauen, starten, auf /health warten (sichert vorher profiles.json)
 ./deploy logs | ./deploy stop
 ./deploy backup    # Spielstände nach ~/osp-backups auf dem Server kopieren
+./deploy cron      # Sicherung alle 6 Stunden per Cron einrichten (14 Tage aufbewahrt, Log: ~/osp-backups/backup.log)
 ```
 
 Wiederherstellen: die Dateien aus `~/osp-backups` nach `/data/profiles.json` bzw. `/data/territory.json` im Volume `osp-data` kopieren

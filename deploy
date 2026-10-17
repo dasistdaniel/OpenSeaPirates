@@ -3,6 +3,7 @@
 #   ./deploy          Quellen synchronisieren, Image bauen, Container (neu) starten, auf "healthy" warten
 #   ./deploy logs     Container-Log folgen
 #   ./deploy stop     Container stoppen und entfernen (Spielstände bleiben im Volume)
+#   ./deploy cron     Sicherung alle 6 Stunden per Cron auf dem Server einrichten (14 Tage aufbewahren)
 #   ./deploy backup   Spielstände und Eroberungen (profiles.json, territory.json) nach ~/osp-backups auf dem Server kopieren
 # Die .env liegt nur auf dem Server; beim ersten Lauf wird sie mit Standardwerten angelegt (siehe .env.example).
 set -euo pipefail
@@ -13,6 +14,11 @@ cd "$(dirname "$0")"
 case "${1:-}" in
   logs) exec ssh $HOST "cd $DIR && docker compose logs -f --tail 100 osp" ;;
   stop) exec ssh $HOST "cd $DIR && docker compose down" ;;
+  cron)
+    # Sicherung per Cron einrichten (alle 6 Stunden, 14 Tage aufbewahren); mehrfaches Ausführen ist harmlos
+    scp -q scripts/backup_server.sh $HOST:osp-backup.sh
+    ssh $HOST 'chmod +x ~/osp-backup.sh && mkdir -p ~/osp-backups       && ( crontab -l 2>/dev/null | grep -v "osp-backup.sh"; echo "15 */6 * * * \$HOME/osp-backup.sh >> \$HOME/osp-backups/backup.log 2>&1" ) | crontab -       && echo "Cron eingerichtet:" && crontab -l | grep osp-backup.sh'
+    exit 0 ;;
   backup)
     ssh $HOST "mkdir -p ~/osp-backups && stamp=\$(date +%Y%m%d-%H%M%S) && docker cp osp:/data/profiles.json ~/osp-backups/profiles-\$stamp.json && (docker cp osp:/data/territory.json ~/osp-backups/territory-\$stamp.json 2>/dev/null || true) && ls -1t ~/osp-backups | head -6"
     exit 0 ;;

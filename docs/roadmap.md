@@ -37,8 +37,8 @@ Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sound
 
 ## Betrieb und Wartung
 
-- **Backups:** `./deploy backup` läuft vor jedem Deploy automatisch und sichert `profiles.json` und `territory.json`. Ein täglicher Cronjob auf dem Server
-  (`./deploy backup` bzw. `cp` von `profiles.json`) fehlt noch.
+- **Backups:** `./deploy backup` läuft vor jedem Deploy automatisch und sichert `profiles.json` und `territory.json`. Ein Cronjob auf dem Server sichert alle 6 Stunden
+  (`./deploy cron` richtet ihn ein, 14 Tage aufbewahrt, Log in `~/osp-backups/backup.log`).
 - **Abhängigkeiten:** `./mx test` zeigt Sicherheitshinweise zu Hex-Paketen an; `./mx deps.update <paket>`
   aktualisiert (zuletzt bandit 1.13.1, thousand_island 1.6.0).
 - **Director-Dichte:** Wie viele NPCs um die Spieler sind, im Spiel gelegentlich prüfen (`director.ex`).
@@ -57,6 +57,5 @@ Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sound
 
 1. Weiter mit Freunden spielen, Auffälligkeiten sammeln, Zahlen in `combat.ex`, `sailing.ex`, `ships.ex`,
    `shop.ex`, `director.ex` nachjustieren.
-2. Täglichen Backup-Cronjob einrichten (siehe Betrieb und Wartung).
-3. Danach Ausbau aus Abschnitt C, was am meisten Spaß bringt (Mine/Sondermunition, Bestenliste, Entern).
+2. Danach Ausbau aus Abschnitt C, was am meisten Spaß bringt (Mine/Sondermunition, Bestenliste, Entern).
 4. Nach jeder Änderung: `./mx precommit`, committen, `./deploy`, `git push`, diese Doku mitpflegen.
