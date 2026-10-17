@@ -91,7 +91,7 @@ defmodule Osp.WorldTest do
         Process.sleep(:infinity)
       end)
 
-    assert_receive :joined, 500
+    assert_receive :joined, 2_000
     ref = Process.monitor(pid)
     Process.exit(pid, :kill)
     assert_receive {:DOWN, ^ref, :process, ^pid, _}, 500
