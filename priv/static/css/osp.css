@@ -378,3 +378,26 @@ kbd {
 .reps small { color: var(--muted); }
 .hostile { padding: 16px 20px 24px; }
 .hostile h3 { color: #fca5a5; margin-top: 0; }
+
+/* --- Quest-Log ------------------------------------------------------------------------ */
+#quest-log {
+  position: fixed;
+  left: 16px;
+  top: 60px;
+  width: 230px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+#quest-log[hidden] { display: none; }
+#quest-log h4 { margin: 0 0 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+#quest-log .q { padding: 4px 0; border-top: 1px solid var(--line); }
+#quest-log .q:first-of-type { border-top: 0; }
+#quest-log .q b { display: block; }
+#quest-log .meta { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+#quest-log .arrow { display: inline-block; width: 14px; text-align: center; color: var(--gold); }
+.card h4, h4 { margin-top: 12px; }

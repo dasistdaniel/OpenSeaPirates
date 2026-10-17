@@ -176,6 +176,15 @@ function handleEvent(ev) {
     const was = standing(value - delta), now = standing(value)
     if (was !== now && now === "suspicious") flash(`Die Jäger von ${n.name} suchen dich`, "#fbbf24")
     else if (was !== now && now === "wanted") flash(`${n.name} sucht dich! Häfen verweigern den Handel, Forts schießen`, "#f87171")
+  } else if (kind === "quest_done") {
+    const [, id, gold, rep, nation] = ev
+    const n = NATIONS[nation]
+    if (id !== myId) return
+    flash(`Auftrag erfüllt: +${gold} Gold, Ruf ${n ? n.name : ""} +${rep}`, "#86efac")
+    sound.play("coin", 1)
+  } else if (kind === "quest_lost") {
+    if (ev[1] !== myId) return
+    flash(ev[2] === "death" ? "Auftrag gescheitert: Ware verloren" : "Auftrag abgelaufen", "#fbbf24")
   } else if (kind === "fort_warn") {
     if (ev[2] === myId) flash("Das Fort eröffnet das Feuer!", "#f87171")
   } else if (kind === "rake") {
@@ -274,6 +283,49 @@ const LOAD_RADIUS_WE = 48 // Chunks in diesem Umkreis laden (Bildschirm ± Minik
 let lastHeading = 0
 let lastBoard = 0
 
+// Quest-Log links: Titel, Fortschritt, Restzeit und grobe Richtung (Pfeil, Himmelsrichtung, gerundete Entfernung)
+const questEl = $("quest-log")
+const COMPASS = ["O", "NO", "N", "NW", "W", "SW", "S", "SO"]
+
+function compass(dx, dy) {
+  const deg = (Math.atan2(-dy, dx) * 180) / Math.PI // Norden oben, y wächst nach unten
+  return COMPASS[((Math.round(deg / 45) % 8) + 8) % 8]
+}
+
+function renderQuests(me, quests) {
+  questEl.hidden = !quests || quests.length === 0
+  if (questEl.hidden) return
+  const rows = [Object.assign(document.createElement("h4"), { textContent: "Aufträge" })]
+  for (const q of quests) {
+    const row = document.createElement("div")
+    row.className = "q"
+    const nation = NATIONS[q.tn]
+    const title =
+      q.k === "delivery"
+        ? `Lieferung nach ${q.to || "?"}`
+        : `Jäger von ${nation ? nation.name : "?"}: ${q.have}/${q.need}`
+    const t = Object.assign(document.createElement("b"), { textContent: title })
+    const meta = document.createElement("div")
+    meta.className = "meta"
+    const arrow = Object.assign(document.createElement("span"), { className: "arrow" })
+    const info = document.createElement("span")
+    const mm = String(Math.floor(q.left / 60)).padStart(2, "0"), ss = String(q.left % 60).padStart(2, "0")
+    if (q.hx === null || q.hx === undefined) {
+      info.textContent = `Richtung unbekannt · ${mm}:${ss}`
+    } else {
+      const dx = q.hx - me.x, dy = q.hy - me.y
+      arrow.textContent = "➤"
+      arrow.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`
+      const dist = Math.round(Math.hypot(dx, dy) / 10) * 10
+      info.textContent = `${compass(dx, dy)} · ca. ${dist} WE · ${mm}:${ss}`
+    }
+    meta.append(arrow, info)
+    row.append(t, meta)
+    rows.push(row)
+  }
+  questEl.replaceChildren(...rows)
+}
+
 // Rangliste der Online-Spieler: Abschüsse, Gold, Richtung und Entfernung (Namen nur als Text einsetzen)
 const boardEl = $("board")
 function renderBoard(me, state) {
@@ -322,6 +374,7 @@ function frame(now) {
       if (now - lastBoard > 250) {
         lastBoard = now
         renderBoard(me, state)
+        renderQuests(me, state.me && state.me.q)
       }
       const dh = Math.abs(Math.atan2(Math.sin(me.h - lastHeading), Math.cos(me.h - lastHeading)))
       lastHeading = me.h

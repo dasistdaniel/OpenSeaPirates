@@ -3,13 +3,19 @@
 
 import { NATIONS, NATION_ORDER, standing, STANDING_LABEL, STANDING_COLOR, signed } from "./nations.js"
 
+// Text sicher in HTML einsetzen (Namen und IDs kommen vom Server)
+function esc(text) {
+  const el = document.createElement("span")
+  el.textContent = String(text == null ? "" : text)
+  return el.innerHTML.replace(/"/g, "&quot;")
+}
+
 const COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 
 const ERRORS = {
   no_gold: "Zu wenig Gold.",
   max_level: "Höchste Stufe erreicht.",
   same_class: "Du fährst dieses Schiff schon.",
-  full: "Nichts zu tun.",
   no_bank_gold: "So viel liegt nicht auf der Bank.",
   amount: "Ungültiger Betrag.",
   not_docked: "Du bist nicht angedockt.",
@@ -17,6 +23,10 @@ const ERRORS = {
   no_port: "Kein Hafen in Reichweite.",
   docked: "Du bist schon angedockt.",
   hostile: "Dieser Hafen verkauft dir nichts mehr.",
+  full: "Nichts zu tun, oder du hast schon zwei Aufträge.",
+  duplicate: "Diesen Auftrag hast du schon.",
+  unknown_offer: "Dieser Auftrag gilt nicht mehr.",
+  nothing: "Hier gibt es nichts abzugeben.",
   not_wanted: "Du wirst hier nicht gesucht.",
   unknown: "Unbekannt.",
 }
@@ -71,7 +81,9 @@ export class Shop {
     else if (act === "upgrade") this.net.send({ t: "buy", what: "upgrade", id })
     else if (act === "ammo") this.net.send({ t: "buy", what: "ammo", id })
     else if (act === "repair") this.net.send({ t: "buy", what: "repair" })
-    else if (act === "atone") this.net.send({ t: "buy", what: "atone" })
+    else if (act === "quest-accept") this.net.send({ t: "quest", op: "accept", id })
+    else if (act === "quest-abandon") this.net.send({ t: "quest", op: "abandon", id })
+    else if (act === "quest-turn-in") this.net.send({ t: "quest", op: "turn_in" })
     else if (act === "bank") this.net.send({ t: "bank", op, amount: amount === "all" ? "all" : Number(amount) })
   }
 
@@ -87,24 +99,60 @@ export class Shop {
     return `<div class="reps">${items}</div>`
   }
 
-  // Gesucht bei der Nation des Hafens: nichts wird verkauft, nur die Wiedergutmachung
+  // Aufträge: Angebote des Hafens (Annehmen) und aktive Quests (Abgeben, Aufgeben); `offers` kann die
+  // Wiedergutmachungsangebote sein. Texte kommen aus Server-Daten und Konstanten, Namen werden escaped.
+  questsHtml(v, offers) {
+    const q = v.quests || { offers: [], active: [] }
+    const full = q.active.length >= 2
+    const nation = (n) => (NATIONS[n] ? NATIONS[n].name : "")
+    const title = (o) =>
+      o.k === "delivery"
+        ? `Lieferung nach ${esc(o.to)} (${o.dist} WE)`
+        : `Versenke ${o.need} Jäger von ${esc(nation(o.tn))}`
+    const reward = (o) => `${o.gold > 0 ? o.gold + " 🪙 · " : ""}Ruf ${esc(nation(o.n))} +${o.rep}`
+
+    const offerRows = offers
+      .map(
+        (o) => `
+        <div class="row">
+          <div class="grow"><b>${title(o)}</b><small>${reward(o)}${o.at ? " · Wiedergutmachung" : ""}</small></div>
+          <button data-act="quest-accept" data-id="${esc(o.id)}" ${full ? "disabled" : ""}>Annehmen</button>
+        </div>`
+      )
+      .join("")
+
+    const activeRows = q.active
+      .map(
+        (a) => `
+        <div class="row">
+          <div class="grow"><b>${title(a)}</b><small>${a.k === "hunt" ? `${a.have}/${a.need} · ` : ""}${reward(a)}</small></div>
+          <button class="ghost" data-act="quest-abandon" data-id="${esc(a.id)}">Aufgeben</button>
+        </div>`
+      )
+      .join("")
+
+    return `
+      ${offerRows || '<p class="muted">Keine Aufträge im Angebot.</p>'}
+      ${q.active.length ? `<h4>Deine Aufträge</h4>${activeRows}<div class="row"><button data-act="quest-turn-in">Erledigte Aufträge hier abgeben</button></div>` : ""}`
+  }
+
+  // Gesucht bei der Nation des Hafens: nichts wird verkauft; Wiedergutmachung gibt es als Quest
   renderHostile(v) {
     const nation = NATIONS[v.nation] ? NATIONS[v.nation].name : ""
-    const can = v.gold >= v.atone.cost
+    const offers = (v.quests && v.quests.atone) || []
     this.root.innerHTML = `
       <div class="panel">
         <header>
-          <div><span class="kicker">Hafen · ${nation}</span><h2>⚓ ${v.port}</h2></div>
+          <div><span class="kicker">Hafen · ${nation}</span><h2>⚓ ${esc(v.port)}</h2></div>
           <div class="money"><span>🪙 ${v.gold}</span></div>
           <button class="ghost" data-act="undock">Ablegen (F)</button>
         </header>
         <div class="hostile">
           <h3>${nation} verkauft dir nichts mehr</h3>
           <p>Du bist hier <b>gesucht</b> (Ruf ${signed(v.rep)}). Schiffe, Ausrüstung, Munition, Reparatur und Bank sind gesperrt,
-            und die Schutzzone gilt für dich nicht. Zahle Wiedergutmachung, um wieder Handel zu treiben.</p>
-          <div class="row"><div class="grow"><b>Wiedergutmachung</b><small>Ruf bei ${nation} ${signed(v.atone.gain)}</small></div>
-            <button data-act="atone" ${can ? "" : "disabled"}>${v.atone.cost} 🪙</button></div>
-          ${can ? "" : `<p class="muted">Dir fehlen ${v.atone.cost - v.gold} Gold. Der Ruf erholt sich auch von selbst, langsam.</p>`}
+            und die Schutzzone gilt für dich nicht. Erledige einen Auftrag zur Wiedergutmachung, um wieder Handel zu treiben.</p>
+          <h3>Wiedergutmachung</h3>
+          ${this.questsHtml(v, offers)}
           ${this.repsHtml(v)}
         </div>
       </div>`
@@ -174,6 +222,7 @@ export class Shop {
             <h3>Werft</h3>
             <div class="row"><div class="grow"><b>Reparatur</b><small>${v.hp} / ${v.max_hp} HP · ${v.repair.per_hp} Gold je HP</small></div>
               <button data-act="repair" ${v.repair.cost > 0 && v.gold >= v.repair.per_hp ? "" : "disabled"}>${v.repair.cost} 🪙</button></div>
+            <h3>Aufträge</h3>${this.questsHtml(v, (v.quests && v.quests.offers) || [])}
             <h3>Ruf</h3>${this.repsHtml(v)}
             <h3>Bank <small>sicher vor Verlust beim Tod</small></h3>
             <div class="row bank">
