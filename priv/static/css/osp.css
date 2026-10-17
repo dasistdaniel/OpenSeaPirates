@@ -30,8 +30,8 @@ html, body {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  width: 168px;
-  height: 168px;
+  width: 200px;
+  height: 200px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);

@@ -32,7 +32,10 @@ let docked = false
 const net = new Net({
   onWelcome(msg) {
     // Gelände nur neu laden, wenn die Welt eine andere ist (Server-Neustart mit neuem Seed)
-    if (msg.seed !== worldSeed) chunks.configure(msg)
+    if (msg.seed !== worldSeed) {
+      chunks.configure(msg)
+      loadKnownPorts(msg.seed)
+    }
     worldSeed = msg.seed
     snaps.list.length = 0 // keine Interpolation über die Lücke der Unterbrechung
     docked = shop.update({ t: "shop", open: false }) // Hafen-Ansicht kommt vom Server, falls angedockt
@@ -48,6 +51,7 @@ const net = new Net({
     snaps.push(msg)
     for (const s of msg.ships) names.set(s.i, s.n)
     if (msg.pl) players.list = msg.pl
+    rememberPorts(msg.ports)
     for (const ev of msg.ev || []) handleEvent(ev)
   },
   onShop(msg) {
@@ -103,6 +107,51 @@ const renderer = new Renderer($("game"), chunks)
 const minimap = new Minimap($("minimap"), chunks)
 const waypoints = new Waypoints()
 renderer.waypoints = waypoints
+
+// Häfen, die man schon gesehen hat (auch außerhalb der Serversicht): auf der Minikarte immer sichtbar.
+// Gemerkt je Welt (Seed) im Browser, damit sie nach einem Neuladen noch da sind.
+const knownPorts = new Map() // id -> { x, y, name, nation }
+let portsKey = null
+let portsDirty = false
+
+function loadKnownPorts(seed) {
+  knownPorts.clear()
+  portsKey = `osp-ports-${seed}`
+  try {
+    for (const [id, x, y, name, nation] of JSON.parse(localStorage.getItem(portsKey) || "[]")) {
+      knownPorts.set(id, { x, y, name, nation })
+    }
+  } catch (_) {}
+}
+
+function rememberPorts(list) {
+  for (const p of list || []) {
+    const old = knownPorts.get(p[0])
+    if (!old || old.nation !== p[5]) {
+      knownPorts.set(p[0], { x: p[1], y: p[2], name: p[3], nation: p[5] })
+      portsDirty = true
+    }
+  }
+}
+
+setInterval(() => {
+  if (!portsDirty || !portsKey) return
+  portsDirty = false
+  try {
+    const rows = [...knownPorts].map(([id, p]) => [id, p.x, p.y, p.name, p.nation]).slice(-600)
+    localStorage.setItem(portsKey, JSON.stringify(rows))
+  } catch (_) {}
+}, 10_000)
+
+// Minikarte: Klick setzt einen Wegpunkt (Klick auf einen vorhandenen entfernt ihn), Rechtsklick entfernt
+// den nächsten; so lassen sich auch weit entfernte Ziele setzen
+minimap.onPick = (x, y, range) => {
+  if (!joined || docked) return
+  if (!waypoints.removeNear(x, y, range * 0.06)) waypoints.add(x, y)
+}
+minimap.onRemove = (x, y) => {
+  if (joined) waypoints.removeNear(x, y)
+}
 
 // Mausrad zoomt; Linksklick setzt einen Wegpunkt (Klick auf einen vorhandenen entfernt ihn),
 // Rechtsklick entfernt den nächsten
@@ -385,7 +434,7 @@ function frame(now) {
       shop.setColor(me.c)
       chunks.ensureAround(me.x, me.y, LOAD_RADIUS_WE)
       if (waypoints.reach(me)) sound.play("coin", 0.5)
-      minimap.draw(me, state.ships, now, players.list, waypoints.list, state.ports)
+      minimap.draw(me, state.ships, now, players.list, waypoints.list, [...knownPorts.values()])
       if (state.me && state.me.tn) territoryChanged(state.me.tn)
       renderer.players = players.list
       if (now - lastBoard > 250) {

@@ -10,6 +10,7 @@ export class Chunks {
     this.land = 0.66
     this.map = new Map() // "cx,cy" -> { bytes, canvas|null }
     this.pending = new Map() // key -> Anfragezeit; verlorene Anfragen laufen ab und werden wiederholt
+    this.explored = new Map() // "cx,cy" -> Uint8Array(64): grobe Gelände-Art je 2-WE-Zelle, bleibt erhalten
     this.builtThisFrame = 0
   }
 
@@ -20,6 +21,37 @@ export class Chunks {
     this.edge = chunk * res + 1
     this.map.clear()
     this.pending.clear()
+    this.explored.clear()
+  }
+
+  // Grobe Übersicht eines Chunks merken (8 × 8 Zellen à 2 WE; 0 tief, 1 flach, 2 Strand, 3 Land), damit
+  // die Minikarte auch Gebiete zeigt, deren Chunks schon wieder vergessen wurden
+  remember(cx, cy, bytes) {
+    const e = this.edge, res = this.res, land = this.land
+    const cells = new Uint8Array(64)
+    for (let j = 0; j < 8; j++) {
+      for (let i = 0; i < 8; i++) {
+        const si = Math.min(Math.floor((i + 0.5) * 2 * res), e - 1)
+        const sj = Math.min(Math.floor((j + 0.5) * 2 * res), e - 1)
+        const h = bytes[sj * e + si] / 255
+        cells[j * 8 + i] = h >= land + 0.1 ? 3 : h >= land ? 2 : h >= land - 0.07 ? 1 : 0
+      }
+    }
+    const key = this.key(cx, cy)
+    this.explored.delete(key) // ans Ende der Reihenfolge (zuletzt gesehen)
+    this.explored.set(key, cells)
+    if (this.explored.size > 6000) this.explored.delete(this.explored.keys().next().value)
+  }
+
+  // Gelände-Art an einem Weltpunkt aus der Erinnerung, -1 wenn dort noch nie etwas geladen war
+  exploredKind(x, y) {
+    const s = this.size
+    const cx = Math.floor(x / s), cy = Math.floor(y / s)
+    const cells = this.explored.get(this.key(cx, cy))
+    if (!cells) return -1
+    const i = Math.min(Math.floor(((x - cx * s) / s) * 8), 7)
+    const j = Math.min(Math.floor(((y - cy * s) / s) * 8), 7)
+    return cells[j * 8 + i]
   }
 
   // Anfragen, die nach 2,5 s unbeantwortet sind (z. B. vom Server wegen Mengenbegrenzung verworfen)
@@ -34,6 +66,7 @@ export class Chunks {
   set(cx, cy, bytes) {
     this.pending.delete(this.key(cx, cy))
     this.map.set(this.key(cx, cy), { bytes, canvas: null })
+    this.remember(cx, cy, bytes)
   }
 
   get(cx, cy) {

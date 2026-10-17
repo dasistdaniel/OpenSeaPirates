@@ -51,7 +51,8 @@ Powerups wurden bewusst wieder entfernt (passen nicht zum Thema).
 | `1` `2` `3` | Kugeln / Kettenkugel / Brandgeschoss |
 | `S` | Segelstufe weiter: voll → Beisegel → gerafft → voll |
 | `F`, `Esc` | im Hafen andocken, ablegen |
-| Mausrad | Zoom (12–44 WE Bildbreite) |
+| Mausrad | Zoom (12–44 WE Bildbreite); über der Minikarte deren Ausschnitt (±42 bis ±336 WE) |
+| Klick auf die Minikarte | Wegpunkt setzen (auch weit entfernt), Rechtsklick entfernt den nächsten |
 | Linksklick / Rechtsklick | Wegpunkt setzen oder entfernen / nächsten entfernen |
 | `H`, `M` | Hilfe, Ton aus/an |
 
