@@ -20,6 +20,21 @@ defmodule Osp.WebTest do
     assert (conn(:get, "/nichts") |> Router.call(Router.init([]))).status == 404
   end
 
+  test "Vorschau beim Teilen: Meta-Tags mit absoluten Adressen, Vorschaubild wird ausgeliefert" do
+    html = (conn(:get, "/") |> Router.call(Router.init([]))).resp_body
+    assert html =~ ~s(property="og:title")
+
+    assert html =~
+             ~s(property="og:image" content="https://pirating.ids-gaming.de/images/preview.jpg")
+
+    assert html =~ ~s(name="twitter:card" content="summary_large_image")
+
+    img = conn(:get, "/images/preview.jpg") |> Router.call(Router.init([]))
+    assert img.status == 200
+    assert ["image/jpeg" <> _] = Plug.Conn.get_resp_header(img, "content-type")
+    assert byte_size(img.resp_body) < 300_000
+  end
+
   describe "WebSocket-Protokoll (Callbacks direkt)" do
     setup do
       id = "w" <> Integer.to_string(System.unique_integer([:positive]))

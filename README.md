@@ -72,6 +72,8 @@ und führt `mix` in einem Docker-Container aus.
 
 Flaggen neu erzeugen: `python scripts/nation_flags.py priv/static/images/flags`.
 
+Vorschaubild für geteilte Links neu erzeugen: `python scripts/preview_image.py priv/static/images/preview.jpg`.
+
 Schiffsbilder neu erzeugen (aus dem Kenney Pirate Pack): `python scripts/ship_sprites.py <pack.zip> priv/static/images/ships`
 (pro Klasse und Farbe drei Bilder: voll, `_reefed`, `_studding`; Segelgrößen in `SAIL_SCALE`).
 
