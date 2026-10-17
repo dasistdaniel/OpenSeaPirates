@@ -22,6 +22,7 @@ export class Net {
     this.h = handlers
     this.ws = null
     this.name = ""
+    this.nation = null // gewählte Heimatnation (nur bis das Profil sie kennt, sonst reicht das Token)
     this.wanted = false
     this.retry = 0
     this.token = playerToken()
@@ -61,7 +62,7 @@ export class Net {
       this.joined = false
       this.lastMsg = performance.now()
       this.h.onStatus?.(null)
-      this.send({ t: "join", token: this.token, name: this.name })
+      this.send({ t: "join", token: this.token, name: this.name, ...(this.nation ? { nation: this.nation } : {}) })
     }
 
     ws.onmessage = (ev) => {
@@ -98,6 +99,12 @@ export class Net {
       this.h.onStatus?.(`Verbindung verloren – neuer Versuch ${this.retry} …`)
       setTimeout(() => this.wanted && this.open(), delay)
     }
+  }
+
+  // Nach `nation_required`: Wahl senden (die Verbindung ist noch offen, der Join wird wiederholt)
+  chooseNation(nation) {
+    this.nation = nation
+    this.send({ t: "join", token: this.token, name: this.name, nation })
   }
 
   get ready() {

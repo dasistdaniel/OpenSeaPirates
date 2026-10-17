@@ -317,3 +317,56 @@ kbd {
   cursor: pointer;
 }
 #join-form .credits { margin: 10px 0 0; text-align: center; color: #64748b; font-size: 11px; }
+
+/* --- Nationen ------------------------------------------------------------------------ */
+#nation {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 16, 28, 0.88);
+}
+#nation[hidden] { display: none; }
+#nation .panel {
+  width: min(560px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+#nation h2 { margin: 0 0 6px; }
+#nation-list { display: grid; gap: 8px; margin-top: 14px; }
+#nation-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+#nation-list button:hover { background: rgba(255, 255, 255, 0.12); }
+#nation-list img { width: 32px; height: 22px; image-rendering: pixelated; }
+#nation-list .bonus { margin-left: auto; color: var(--muted); font-size: 13px; }
+
+#territory {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-weight: 700;
+  pointer-events: none;
+}
+#territory[hidden] { display: none; }

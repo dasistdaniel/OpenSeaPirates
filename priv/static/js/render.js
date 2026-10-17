@@ -2,6 +2,7 @@
 
 const PI = Math.PI
 import { SPRITE_COLORS as PLAYER_COLORS } from "./minimap.js"
+import { NATIONS, flagImage } from "./nations.js"
 
 const SPRITE_COLORS = ["yellow", "blue", "red", "green", "black", "white"]
 const VIEW_WIDTH_WE = 26 // Standard: so viele Welteinheiten sind horizontal sichtbar
@@ -466,8 +467,7 @@ export class Renderer {
     ctx.fillStyle = mine ? "#fde68a" : s.kd === "hunter" ? "#fca5a5" : s.kd === "merchant" ? "#cbd5e1" : "rgba(255,255,255,0.92)"
     ctx.strokeStyle = "rgba(0,0,0,0.55)"
     ctx.lineWidth = 3
-    ctx.strokeText(s.n, cx, cy - top)
-    ctx.fillText(s.n, cx, cy - top)
+    this.labelWithFlag(s.n, s.na, cx, cy - top, Math.round(0.26 * scale))
     const bw = 1.0 * scale, bh = 0.1 * scale
     ctx.fillStyle = "rgba(0,0,0,0.5)"
     ctx.fillRect(cx - bw / 2, cy - top + 0.05 * scale, bw, bh)
@@ -475,10 +475,29 @@ export class Renderer {
     ctx.fillRect(cx - bw / 2, cy - top + 0.05 * scale, bw * ratio, bh)
   }
 
+  // Text (mit der Füllfarbe/Kontur, die der Aufrufer gesetzt hat) mittig über (x, y), die Flagge der
+  // Nation links davor, falls bekannt und geladen. `size` ist die Schrifthöhe in Pixeln.
+  labelWithFlag(text, nation, x, y, size) {
+    const { ctx } = this
+    const flag = flagImage(nation)
+    ctx.textAlign = "left"
+    ctx.textBaseline = "bottom"
+    const textW = ctx.measureText(text).width
+    const flagH = size, flagW = flag ? (flag.naturalWidth / flag.naturalHeight) * flagH : 0
+    const gap = flag ? size * 0.3 : 0
+    const left = x - (flagW + gap + textW) / 2
+    if (flag) {
+      ctx.imageSmoothingEnabled = false
+      ctx.drawImage(flag, left, y - flagH, flagW, flagH)
+    }
+    ctx.strokeText(text, left + flagW + gap, y)
+    ctx.fillText(text, left + flagW + gap, y)
+  }
+
   // Häfen: Schutzzone, Steg zur Küste, Turm, Name
   drawPorts(state, cam, now) {
     const { ctx, scale } = this
-    for (const [, x, y, name, land] of state.ports || []) {
+    for (const [, x, y, name, land, nation] of state.ports || []) {
       const cx = this.sx(x, cam), cy = this.sy(y, cam)
 
       ctx.beginPath()
@@ -506,13 +525,10 @@ export class Renderer {
       place(this.tiles.tile_13, 4.0, 1.5, 0)
 
       ctx.font = `700 ${Math.round(0.34 * scale)}px sans-serif`
-      ctx.textAlign = "center"
-      ctx.textBaseline = "bottom"
       ctx.fillStyle = "#fef3c7"
       ctx.strokeStyle = "rgba(0,0,0,0.65)"
       ctx.lineWidth = 4
-      ctx.strokeText("⚓ " + name, cx, cy - 1.1 * scale)
-      ctx.fillText("⚓ " + name, cx, cy - 1.1 * scale)
+      this.labelWithFlag("⚓ " + name, nation, cx, cy - 1.1 * scale, Math.round(0.34 * scale))
     }
   }
 
@@ -615,6 +631,11 @@ export class Renderer {
       ctx.font = `700 ${11 * u}px sans-serif`
       ctx.fillStyle = me.sa === "full" ? "#94a3b8" : "#fde68a"
       ctx.fillText("⛵ " + (sails[me.sa] || ""), cx, cy + 46 * u)
+      const terr = NATIONS[state.me && state.me.tn]
+      if (terr) {
+        ctx.fillStyle = terr.color
+        ctx.fillText("Gewässer: " + terr.name, cx, cy + 60 * u)
+      }
     }
 
     if (me) {

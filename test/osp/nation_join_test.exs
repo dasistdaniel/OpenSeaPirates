@@ -95,21 +95,31 @@ defmodule Osp.NationJoinTest do
   describe "World.join/5" do
     test "nation: setzt die Heimatnation" do
       w = start_world()
-      {:ok, _} = World.join(w, "p1", "Anna", self(), nation: :spain)
-      assert World.state(w).ships["p1"].nation == :spain
+      tok = token()
+      {:ok, _} = World.join(w, tok, "Anna", self(), nation: :spain)
+      assert World.state(w).ships[tok].nation == :spain
     end
 
     test "ohne Wunsch und ohne Profil: gültige Nation aus dem Token-Hash" do
       w = start_world()
-      {:ok, _} = World.join(w, "p1", "Anna")
-      assert World.state(w).ships["p1"].nation in Nations.all()
+      tok = token()
+      {:ok, _} = World.join(w, tok, "Anna")
+      assert World.state(w).ships[tok].nation in Nations.all()
+    end
+
+    test "Beitritt speichert die Nation sofort im Profil" do
+      w = start_world()
+      tok = token()
+      {:ok, _} = World.join(w, tok, "Anna", self(), nation: :portugal)
+      assert Profiles.get(tok)["nation"] == "portugal"
     end
 
     test "Wiederverbinden ändert die Nation nicht" do
       w = start_world()
-      {:ok, _} = World.join(w, "p1", "Anna", self(), nation: :spain)
-      {:ok, _} = World.join(w, "p1", "Anna", self(), nation: :england)
-      assert World.state(w).ships["p1"].nation == :spain
+      tok = token()
+      {:ok, _} = World.join(w, tok, "Anna", self(), nation: :spain)
+      {:ok, _} = World.join(w, tok, "Anna", self(), nation: :england)
+      assert World.state(w).ships[tok].nation == :spain
     end
   end
 

@@ -1,5 +1,7 @@
 // Minikarte: Ausschnitt ±RANGE WE um das eigene Schiff, Norden oben, aus den geladenen Chunks
 
+import { NATIONS } from "./nations.js"
+
 const RANGE = 42 // WE in jede Richtung
 export const SPRITE_COLORS = ["#facc15", "#3b82f6", "#ef4444", "#22c55e", "#94a3b8", "#f8fafc"]
 
@@ -14,7 +16,7 @@ export class Minimap {
     this.last = 0
   }
 
-  draw(me, ships, now, players = [], waypoints = []) {
+  draw(me, ships, now, players = [], waypoints = [], ports = []) {
     if (!me) return
     const { ctx, canvas, tmp, cells, chunks } = this
     const land = chunks.land
@@ -57,6 +59,17 @@ export class Minimap {
       ctx.strokeStyle = "rgba(0,0,0,0.6)"
       ctx.lineWidth = 1
       ctx.stroke()
+    }
+
+    // Häfen als Quadrate in der Farbe ihrer Nation
+    for (const p of ports) {
+      const px = (p[1] - me.x + RANGE) * k, py = (p[2] - me.y + RANGE) * k
+      if (px < 0 || py < 0 || px > canvas.width || py > canvas.height) continue
+      ctx.fillStyle = NATIONS[p[5]] ? NATIONS[p[5]].color : "#e2e8f0"
+      ctx.fillRect(px - 3.5, py - 3.5, 7, 7)
+      ctx.strokeStyle = "#000"
+      ctx.lineWidth = 1
+      ctx.strokeRect(px - 3.5, py - 3.5, 7, 7)
     }
 
     // Andere Spieler: außerhalb der Karte als Pfeil am Rand in ihre Richtung

@@ -9,6 +9,7 @@ import { Minimap } from "./minimap.js"
 import { Sound } from "./audio.js"
 import { SPRITE_COLORS } from "./minimap.js"
 import { Waypoints } from "./waypoints.js"
+import { NATIONS } from "./nations.js"
 import { Shop } from "./shop.js"
 
 const NAME_KEY = "osp-name"
@@ -40,6 +41,7 @@ const net = new Net({
     joined = true
     input.enabled = true
     $("join").hidden = true
+    $("nation").hidden = true
     hudEl.hidden = false
   },
   onSnap(msg) {
@@ -55,6 +57,7 @@ const net = new Net({
     if (docked !== was) sound.play("bell", 0.7)
   },
   onError(msg) {
+    if (msg.reason === "nation_required") return showNationPicker(msg.nations)
     const texts = { full: "Die Welt ist voll. Versuch es später noch einmal." }
     net.wanted = false
     net.ws && net.ws.close()
@@ -175,6 +178,47 @@ function handleEvent(ev) {
   }
 }
 
+// --- Nationswahl und Gebietsmeldung ---------------------------------------------------------------------
+// Der Server schickt die fünf Nationen; Namen und Texte nur per textContent einsetzen
+function showNationPicker(nations) {
+  const list = $("nation-list")
+  const buttons = (nations || []).map((n) => {
+    const b = document.createElement("button")
+    b.type = "button"
+    b.style.borderLeftColor = n.color
+    const img = document.createElement("img")
+    img.src = `/images/flags/${encodeURIComponent(n.id)}.png`
+    img.alt = ""
+    const name = Object.assign(document.createElement("b"), { textContent: n.name })
+    const bonus = Object.assign(document.createElement("span"), { className: "bonus", textContent: n.bonus })
+    b.append(img, name, bonus)
+    b.addEventListener("click", () => {
+      $("nation").hidden = true
+      net.chooseNation(n.id)
+    })
+    return b
+  })
+  list.replaceChildren(...buttons)
+  $("join").hidden = true // der Namensbildschirm liegt sonst über der Wahl
+  $("nation").hidden = false
+}
+
+let lastTerritory = null
+let territoryTimer = null
+function territoryChanged(tn) {
+  if (tn === lastTerritory) return
+  const first = lastTerritory === null
+  lastTerritory = tn
+  const nation = NATIONS[tn]
+  if (first || !nation) return
+  const el = $("territory")
+  el.textContent = `Du betrittst ${nation.adjective} Gewässer`
+  el.style.color = nation.color
+  el.hidden = false
+  clearTimeout(territoryTimer)
+  territoryTimer = setTimeout(() => (el.hidden = true), 4000)
+}
+
 // --- Hilfe, Lautstärke -------------------------------------------------------------------
 const helpEl = $("help")
 function toggleHelp(force) {
@@ -252,7 +296,8 @@ function frame(now) {
       shop.setColor(me.c)
       chunks.ensureAround(me.x, me.y, LOAD_RADIUS_WE)
       if (waypoints.reach(me)) sound.play("coin", 0.5)
-      minimap.draw(me, state.ships, now, players.list, waypoints.list)
+      minimap.draw(me, state.ships, now, players.list, waypoints.list, state.ports)
+      if (state.me && state.me.tn) territoryChanged(state.me.tn)
       renderer.players = players.list
       if (now - lastBoard > 250) {
         lastBoard = now
