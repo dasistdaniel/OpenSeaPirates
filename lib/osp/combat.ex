@@ -10,7 +10,7 @@ defmodule Osp.Combat do
     * `{:splash, x, y}`, `{:respawn, id, x, y}`, `{:loot, id, gold, x, y}` (Beute eingesammelt)
   """
 
-  alias Osp.{Ports, Ships, State, Terrain}
+  alias Osp.{Ports, Reputation, Ships, State, Terrain}
 
   # Lange Ladezeit, dafür kräftige Salven: jede Breitseite zählt, Dauerkreisen lohnt nicht
   @reload_ms 3_000
@@ -31,6 +31,8 @@ defmodule Osp.Combat do
   @slow_ms 3_000
   @burn_ms 3_000
   @burn_tick_ms 1_000
+  # Notwehr: ein Jäger, der den Spieler in den letzten 15 s beschossen hat oder auf ihn Jagd macht
+  @self_defense_ms 15_000
 
   def reload_ms, do: @reload_ms
   def respawn_ms, do: @respawn_ms
@@ -224,7 +226,15 @@ defmodule Osp.Combat do
     else
       lost = min(amount, s.hp)
       flee = if s.kind == :merchant and by != nil, do: %{from: by, until: state.time + 8_000}
-      s = %{s | hp: s.hp - amount, last_hit_by: by || s.last_hit_by, flee: flee || s.flee}
+
+      s = %{
+        s
+        | hp: s.hp - amount,
+          last_hit_by: by || s.last_hit_by,
+          flee: flee || s.flee,
+          attacked_at: note_attack(state, s, by)
+      }
+
       state = State.put_ship(state, victim_id, s)
 
       state =
@@ -242,6 +252,16 @@ defmodule Osp.Combat do
       end
     end
   end
+
+  # Trifft ein NPC einen Spieler, merkt sich dieser Zeit und Angreifer (für die Notwehr-Regel)
+  defp note_attack(state, %{kind: :player, attacked_at: marks}, by) when by != nil do
+    case state.ships[by] do
+      %{kind: kind} when kind != :player -> Map.put(marks, by, state.time)
+      _ -> marks
+    end
+  end
+
+  defp note_attack(_state, s, _by), do: Map.get(s, :attacked_at, %{})
 
   # Wirkung der Sondermunition auf ein getroffenes (überlebendes) Schiff
   defp ammo_effect(state, victim, %{ammo: :chain}) do
@@ -325,7 +345,36 @@ defmodule Osp.Combat do
           state |> State.remove_npc(id) |> drop_loot(s.x, s.y, s.bounty)
       end
 
-    {state, [{:kill, killer, id, s.x, s.y}]}
+    {state, rep_events} = punish(state, s, killer)
+    {state, [{:kill, killer, id, s.x, s.y}] ++ rep_events}
+  end
+
+  # Ruf: Wer ein Schiff einer Nation versenkt, verliert Ruf bei dieser Nation (Händler 8, Jäger 5) –
+  # außer in Notwehr gegen einen Jäger, der ihn gerade angegriffen hat
+  defp punish(state, victim, killer_id) do
+    with true <- victim.kind in [:merchant, :hunter],
+         nation when nation != nil <- victim.nation,
+         %{kind: :player, alive?: true} = killer <- killer_id && state.ships[killer_id],
+         penalty when penalty > 0 <- Reputation.penalty(victim.kind),
+         false <- self_defense?(state, victim, killer) do
+      State.add_rep(state, killer_id, nation, -penalty)
+    else
+      _ -> {state, []}
+    end
+  end
+
+  defp self_defense?(_state, %{kind: :merchant}, _killer), do: false
+
+  defp self_defense?(state, hunter, killer) do
+    recent? = fn t -> is_integer(t) and state.time - t <= @self_defense_ms end
+
+    case hunter.hunting do
+      {id, t} when id == killer.id ->
+        recent?.(t) or recent?.(Map.get(killer.attacked_at, hunter.id))
+
+      _ ->
+        recent?.(Map.get(killer.attacked_at, hunter.id))
+    end
   end
 
   # --- Beute --------------------------------------------------------------------------

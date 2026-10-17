@@ -128,6 +128,8 @@ defmodule Osp.State do
       nation: nil,
       terr: nil,
       rep: Reputation.start(nil),
+      hunting: nil,
+      attacked_at: %{},
       class: class,
       upgrades: upgrades,
       color: color,
@@ -540,7 +542,7 @@ defmodule Osp.State do
 
               acc = %{
                 acc
-                | ships: Map.put(acc.ships, id, %{ship | input: keys, run: nil}),
+                | ships: Map.put(acc.ships, id, %{ship | input: keys, run: nil, hunting: nil}),
                   targets: Map.put(acc.targets, id, target),
                   rng: rng
               }
@@ -608,7 +610,14 @@ defmodule Osp.State do
   # Kampf eines NPCs gegen `enemy`: Angriffslauf (`Osp.Hunter.attack/4`), danach feuern
   defp fight(acc, ev, id, ship, enemy, solid?) do
     {keys, fires, run} = Hunter.attack(ship, enemy, solid?, acc.time)
-    acc = %{acc | ships: Map.put(acc.ships, id, %{ship | input: keys, run: run})}
+
+    # Jäger merken, auf wen sie gerade Jagd machen (Notwehr-Regel beim Ruf); Händler nie
+    hunting = if ship.kind == :hunter, do: {enemy.id, acc.time}, else: nil
+
+    acc = %{
+      acc
+      | ships: Map.put(acc.ships, id, %{ship | input: keys, run: run, hunting: hunting})
+    }
 
     Enum.reduce(fires, {acc, ev}, fn side, {a, e} ->
       {a, more} = Combat.fire(a, id, side)
