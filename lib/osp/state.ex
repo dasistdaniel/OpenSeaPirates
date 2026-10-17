@@ -17,6 +17,7 @@ defmodule Osp.State do
     Hunter,
     Nations,
     Ports,
+    Quests,
     Reputation,
     Sailing,
     Ships,
@@ -131,6 +132,7 @@ defmodule Osp.State do
       nation: nil,
       terr: nil,
       rep: Reputation.start(nil),
+      quests: [],
       hunting: nil,
       attacked_at: %{},
       class: class,
@@ -510,6 +512,7 @@ defmodule Osp.State do
     state = turn_wind(state)
     state = update_territory(state)
     state = decay_reputation(state)
+    {state, quest_events} = update_quests(state)
     {state, npc_events} = think_npcs(state)
     state = Director.step(state)
     solid? = fn x, y -> Terrain.land?(state.seed, x, y) end
@@ -527,7 +530,7 @@ defmodule Osp.State do
 
     {state, events} = Combat.step(%{state | ships: ships}, ms)
     {state, fort_events} = Fort.step(state)
-    {expire(state), npc_events ++ events ++ fort_events}
+    {expire(state), npc_events ++ events ++ fort_events ++ quest_events}
   end
 
   # Tempo- und Wendigkeitsfaktoren: Spieler aus Klasse/Upgrades, NPCs aus ihrer Art; Kettenkugel bremst
@@ -565,6 +568,40 @@ defmodule Osp.State do
       end)
 
     %{state | ships: ships}
+  end
+
+  # Quests lebender Spieler: alle 500 ms 500 ms Zeit abziehen (Abgelaufene entfernen, melden) und
+  # Zielhafen-Name und groben Hinweis neu bestimmen
+  defp update_quests(%{time: t} = state) when rem(t, 500) != 0, do: {state, []}
+
+  defp update_quests(state) do
+    Enum.reduce(state.ships, {state, []}, fn
+      {id, %{kind: :player, alive?: true, quests: [_ | _] = quests} = s}, {st, ev} ->
+        {kept, expired} = Quests.tick(quests, 500)
+        kept = Enum.map(kept, &quest_info(st.seed, &1, {s.x, s.y}))
+        lost = for _ <- expired, do: {:quest_lost, id, :expired, s.x, s.y}
+        {put_ship(st, id, %{s | quests: kept}), ev ++ lost}
+
+      _other, acc ->
+        acc
+    end)
+  end
+
+  # Anzeigedaten einer Quest (nicht im Profil): Name des Zielhafens und gerundeter Hinweis
+  defp quest_info(seed, quest, pos) do
+    to_name =
+      case quest.to && Ports.by_id(seed, quest.to) do
+        %{name: name} -> name
+        _ -> nil
+      end
+
+    hint =
+      case Quests.hint(seed, quest, pos) do
+        nil -> nil
+        point -> Quests.round_hint(point)
+      end
+
+    quest |> Map.put(:to_name, to_name) |> Map.put(:hint, hint)
   end
 
   # Ruf nähert sich alle 10 Minuten Spielzeit um 1 der 0 (für lebende Spieler)
@@ -778,6 +815,7 @@ defmodule Osp.State do
             sa: Atom.to_string(me.sail),
             tn: nation_string(me.terr),
             rp: for(n <- Nations.all(), do: Reputation.get(me.rep, n)),
+            q: Enum.map(me.quests, &quest_view/1),
             dk: me.docked && me.docked.name,
             np:
               case Ports.dockable(state.seed, me.x, me.y) do
@@ -834,6 +872,27 @@ defmodule Osp.State do
     }
   end
 
+  # Eine aktive Quest für den Schnappschuss (grobe Richtung, keine exakten Koordinaten)
+  defp quest_view(q) do
+    {hx, hy} = Map.get(q, :hint) || {nil, nil}
+
+    %{
+      id: q.id,
+      k: Atom.to_string(q.kind),
+      n: Atom.to_string(q.nation),
+      to: Map.get(q, :to_name),
+      hx: hx,
+      hy: hy,
+      tn: q.target_nation && Atom.to_string(q.target_nation),
+      need: q.need,
+      have: q.have,
+      gold: q.gold,
+      rep: q.rep,
+      at: q.atone?,
+      left: ceil(q.left_ms / 1000)
+    }
+  end
+
   # Nation für Nachrichten: Name oder "" (keine)
   defp nation_string(nil), do: ""
   defp nation_string(nation), do: Atom.to_string(nation)
@@ -850,6 +909,9 @@ defmodule Osp.State do
 
   defp event_entry({:hit, v, by, amount, x, y}),
     do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:quest_lost, id, reason, x, y}),
+    do: {x, y, ["quest_lost", public_id(id), Atom.to_string(reason), r2(x), r2(y)]}
 
   defp event_entry({:fort_warn, port_id, player_id, x, y}),
     do: {x, y, ["fort_warn", port_id, public_id(player_id), r2(x), r2(y)]}

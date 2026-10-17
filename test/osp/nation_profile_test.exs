@@ -23,7 +23,7 @@ defmodule Osp.NationProfileTest do
       old = %{"v" => 1, "name" => "Anna", "gold" => 123, "bank" => 50, "class" => "klipper"}
       p = Profile.decode(old)
       assert %{"gold" => 123, "bank" => 50, "class" => "klipper", "nation" => nil} = p
-      assert p["v"] == 3
+      assert p["v"] == 4
     end
 
     test "from_ship/1 und apply/2: Nation macht den Rundlauf" do

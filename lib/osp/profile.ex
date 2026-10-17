@@ -8,9 +8,9 @@ defmodule Osp.Profile do
   manipulierte Datei nie das Spiel zum Absturz bringt (unbekannte Klasse → Startschiff usw.).
   """
 
-  alias Osp.{Nations, Reputation, Ships, Shop}
+  alias Osp.{Nations, Quests, Reputation, Ships, Shop}
 
-  @version 3
+  @version 4
   @max_gold 100_000_000
   @classes Map.new(Ships.order(), &{Atom.to_string(&1), &1})
   @slots %{"cannons" => :cannons, "hull" => :hull, "sails" => :sails}
@@ -22,6 +22,7 @@ defmodule Osp.Profile do
       "name" => "",
       "nation" => nil,
       "rep" => rep_strings(Reputation.start(nil)),
+      "quests" => [],
       "gold" => 0,
       "bank" => 0,
       "class" => "schaluppe",
@@ -40,6 +41,7 @@ defmodule Osp.Profile do
       "name" => ship.name,
       "nation" => ship |> Map.get(:nation) |> nation_string(),
       "rep" => ship |> Map.get(:rep, Reputation.start(nil)) |> rep_strings(),
+      "quests" => ship |> Map.get(:quests, []) |> Enum.map(&Quests.to_json/1),
       "gold" => ship.gold,
       "bank" => ship.bank,
       "class" => Atom.to_string(ship.class),
@@ -67,6 +69,7 @@ defmodule Osp.Profile do
       "name" => if(is_binary(raw["name"]), do: String.slice(raw["name"], 0, 20), else: ""),
       "nation" => raw["nation"] |> Nations.parse() |> nation_from_parse(),
       "rep" => decode_rep(raw["rep"]),
+      "quests" => decode_quests(raw["quests"]),
       "gold" => int(raw["gold"], 0, @max_gold),
       "bank" => int(raw["bank"], 0, @max_gold),
       "class" => if(Map.has_key?(@classes, raw["class"]), do: raw["class"], else: "schaluppe"),
@@ -94,6 +97,7 @@ defmodule Osp.Profile do
       ship
       | nation: nation_atom(p["nation"]),
         rep: rep_atoms(p["rep"], nation_atom(p["nation"])),
+        quests: for(j <- p["quests"], {:ok, q} <- [Quests.from_json(j)], do: q),
         class: Map.fetch!(@classes, p["class"]),
         upgrades: Map.new(@slots, fn {key, slot} -> {slot, p["upgrades"][key]} end),
         gold: p["gold"],
@@ -106,6 +110,21 @@ defmodule Osp.Profile do
     stats = Ships.stats(base)
     %{base | max_hp: stats.max_hp, hp: stats.max_hp * 1.0, radius: stats.radius}
   end
+
+  # Gespeicherte Quests: nur gültige (streng geprüft), keine doppelten IDs, höchstens zwei
+  defp decode_quests(list) when is_list(list) do
+    list
+    |> Enum.flat_map(fn raw ->
+      case Quests.from_json(raw) do
+        {:ok, q} -> [Quests.to_json(q)]
+        :error -> []
+      end
+    end)
+    |> Enum.uniq_by(& &1["id"])
+    |> Enum.take(Quests.max_active())
+  end
+
+  defp decode_quests(_other), do: []
 
   # Ruf als Map mit String-Schlüsseln (JSON); fehlt er im gespeicherten Stand ganz, bleibt `nil` und
   # `apply/2` setzt den Startruf der Heimatnation (altes Profil)

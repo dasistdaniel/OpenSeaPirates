@@ -171,6 +171,28 @@ defmodule Osp.Quests do
     |> Enum.split_with(&(&1.left_ms > 0))
   end
 
+  # --- Hinweis (grobe Richtung) --------------------------------------------------------------
+
+  @doc """
+  Ungerundeter Hinweispunkt `{x, y}` für den Spieler bei `{px, py}`: Lieferung → Zielhafen; Jagd mit
+  fehlenden Abschüssen → nächster Hafen der Zielnation (bis 400 WE); sonst der Abgabehafen. `nil`, wenn
+  es keinen passenden Hafen gibt.
+  """
+  @spec hint(integer(), quest(), {number(), number()}) :: {number(), number()} | nil
+  def hint(seed, %{kind: :delivery, to: to}, _pos), do: port_xy(Ports.by_id(seed, to))
+
+  def hint(seed, %{kind: :hunt, have: have, need: need, target_nation: tn}, pos) when have < need,
+    do: port_xy(Nations.nearest_port_of(seed, tn, pos, 400.0))
+
+  def hint(seed, %{from: from}, _pos), do: port_xy(Ports.by_id(seed, from))
+
+  defp port_xy(nil), do: nil
+  defp port_xy(port), do: {port.x, port.y}
+
+  @doc "Hinweis auf Vielfache von 10 WE runden (der Spieler soll nur die grobe Richtung kennen)."
+  @spec round_hint({number(), number()}) :: {integer(), integer()}
+  def round_hint({x, y}), do: {round(x / 10) * 10, round(y / 10) * 10}
+
   # --- Speicherformat --------------------------------------------------------------------
 
   @doc "JSON-taugliche Map (String-Schlüssel); Hinweise und Anzeigefelder werden nicht gespeichert."
