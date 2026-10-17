@@ -90,7 +90,7 @@ Betreiber (WebSocket-Upgrade auf `/ws` durchreichen). Konfiguration über `.env`
 ./deploy cron      # Sicherung alle 6 Stunden per Cron einrichten (14 Tage aufbewahrt, Log: ~/osp-backups/backup.log)
 ```
 
-Wiederherstellen: die Dateien aus `~/osp-backups` nach `/data/profiles.json` bzw. `/data/territory.json` im Volume `osp-data` kopieren
+Wiederherstellen: die Dateien aus `~/osp-backups` nach `/data/profiles.json`, `/data/territory.json` und `/data/seed.txt` im Volume `osp-data` kopieren
 (Container stoppen, kopieren, starten). Ein defektes `profiles.json` wird beim Start nach `.corrupt`
 verschoben und `profiles.json.bak` geladen.
 
@@ -106,6 +106,7 @@ lib/osp/fort.ex         Forts der Häfen: Warnung, Schüsse mit Vorhalt, Alarm (
 lib/osp/quests.ex       Quests: Angebote aus Seed/Hafen/Zeitfenster, Fortschritt, Prüfung (rein)
 lib/osp/conquest.ex     Eroberung: Angriff, Verteidiger, Fortschritt, Rückfall (rein)
 lib/osp/territory.ex    Speicher der eroberten Häfen (territory.json)
+lib/osp/world_seed.ex   Seed der Hauptwelt, gespeichert in seed.txt (die Welt bleibt über Neustarts gleich)
 lib/osp/wander.ex       Wander-Bot, Ausweichkurs, Befreien festgefahrener NPCs (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Längsfeuer, Treffer, Tod, Beute (rein)
 lib/osp/state.ex        Reiner Weltzustand, Zeitschritt, NPC-Steuerung, Schnappschüsse, öffentliche IDs

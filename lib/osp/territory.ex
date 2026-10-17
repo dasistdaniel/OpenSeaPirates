@@ -51,7 +51,8 @@ defmodule Osp.Territory do
     dir = Keyword.get(opts, :dir, Application.get_env(:osp, :data_dir))
     path = dir && Path.join(dir, @file_name)
 
-    state = %{path: path, ports: load(path), dirty?: false}
+    seed = Keyword.get(opts, :seed)
+    state = %{path: path, seed: seed, ports: load(path, seed), dirty?: false}
     Process.send_after(self(), :flush, @flush_ms)
     {:ok, state}
   end
@@ -111,17 +112,20 @@ defmodule Osp.Territory do
 
   # --- Datei ---------------------------------------------------------------------
 
-  defp load(nil), do: %{}
+  defp load(nil, _seed), do: %{}
 
   # Erst die Hauptdatei, bei Fehlern die Sicherung (.bak); eine kaputte Hauptdatei wird nicht
   # überschrieben, sondern zu `.corrupt` umbenannt.
-  defp load(path) do
-    case read(path) do
+  defp load(path, seed) do
+    case read(path, seed) do
       {:ok, ports} ->
         ports
 
+      :other_world ->
+        %{}
+
       :missing ->
-        case read(path <> ".bak") do
+        case read(path <> ".bak", seed) do
           {:ok, ports} -> ports
           _ -> %{}
         end
@@ -133,7 +137,7 @@ defmodule Osp.Territory do
 
         File.rename(path, path <> ".corrupt")
 
-        case read(path <> ".bak") do
+        case read(path <> ".bak", seed) do
           {:ok, ports} ->
             Logger.warning("Eroberungen aus #{path}.bak wiederhergestellt.")
             ports
@@ -144,7 +148,9 @@ defmodule Osp.Territory do
     end
   end
 
-  defp read(path) do
+  # Gehört die Datei zu einer anderen Welt (anderer Seed), werden ihre Einträge nicht geladen (die
+  # Hafen-IDs wären dort Unsinn); die Datei bleibt unter einem Namen mit dem alten Seed erhalten.
+  defp read(path, seed) do
     case File.read(path) do
       {:error, :enoent} ->
         :missing
@@ -154,11 +160,26 @@ defmodule Osp.Territory do
 
       {:ok, bin} ->
         case Jason.decode(bin) do
-          {:ok, %{"ports" => %{} = map}} -> {:ok, decode(map)}
-          other -> {:error, other}
+          {:ok, %{"ports" => %{} = map} = file} ->
+            if other_world?(file["seed"], seed) do
+              Logger.warning(
+                "#{path} gehört zu Seed #{file["seed"]}, die Welt hat Seed #{seed}: Einträge werden nicht geladen."
+              )
+
+              File.rename(path, "#{path}.seed-#{file["seed"]}")
+              :other_world
+            else
+              {:ok, decode(map)}
+            end
+
+          other ->
+            {:error, other}
         end
     end
   end
+
+  defp other_world?(file_seed, seed),
+    do: is_integer(file_seed) and seed != nil and file_seed != seed
 
   defp decode(map) do
     for {id, raw} <- map,
@@ -180,7 +201,7 @@ defmodule Osp.Territory do
         {id, %{"owner" => Atom.to_string(owner), "since" => since}}
       end)
 
-    json = Jason.encode!(%{"v" => 1, "ports" => ports})
+    json = Jason.encode!(%{"v" => 1, "seed" => state.seed, "ports" => ports})
 
     with :ok <- File.write(tmp, json),
          _ <- File.cp(path, path <> ".bak"),
