@@ -13,6 +13,7 @@ defmodule Osp.State do
   alias Osp.{
     Combat,
     Director,
+    Fort,
     Hunter,
     Nations,
     Ports,
@@ -51,6 +52,7 @@ defmodule Osp.State do
             wind: 0,
             wind_at: @wind_every_ms,
             rng: nil,
+            forts: %{},
             next_id: 1
 
   @type t :: %__MODULE__{}
@@ -64,6 +66,7 @@ defmodule Osp.State do
   """
   def public_id(nil), do: nil
   def public_id("npc-" <> _ = id), do: id
+  def public_id("fort:" <> _ = id), do: id
   def public_id(id), do: "p" <> Integer.to_string(:erlang.phash2({:osp, id}, 4_294_967_296))
   def idle, do: %{up?: false, left?: false, right?: false}
 
@@ -309,7 +312,7 @@ defmodule Osp.State do
   end
 
   @doc "NPC-Schiff (`:merchant` oder `:hunter`) in die Welt setzen; Kopfgeld wird gewürfelt."
-  def add_npc(state, kind, name, x, y, heading, bonus \\ 0) do
+  def add_npc(state, kind, name, x, y, heading, bonus \\ 0, nation \\ nil) do
     id = "npc-#{state.next_id}"
     {r, rng} = :rand.uniform_s(state.rng)
 
@@ -319,7 +322,7 @@ defmodule Osp.State do
     ship = %{
       new_ship(id, name, kind, x, y, heading)
       | bounty: bounty,
-        nation: Nations.at(state.seed, x, y)
+        nation: nation || Nations.at(state.seed, x, y)
     }
 
     %{
@@ -523,7 +526,8 @@ defmodule Osp.State do
       end)
 
     {state, events} = Combat.step(%{state | ships: ships}, ms)
-    {expire(state), npc_events ++ events}
+    {state, fort_events} = Fort.step(state)
+    {expire(state), npc_events ++ events ++ fort_events}
   end
 
   # Tempo- und Wendigkeitsfaktoren: Spieler aus Klasse/Upgrades, NPCs aus ihrer Art; Kettenkugel bremst
@@ -846,6 +850,9 @@ defmodule Osp.State do
 
   defp event_entry({:hit, v, by, amount, x, y}),
     do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:fort_warn, port_id, player_id, x, y}),
+    do: {x, y, ["fort_warn", port_id, public_id(player_id), r2(x), r2(y)]}
 
   defp event_entry({:rep, id, nation, delta, value, x, y}),
     do: {x, y, ["rep", public_id(id), Atom.to_string(nation), delta, value, r2(x), r2(y)]}
