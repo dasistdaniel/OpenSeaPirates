@@ -21,8 +21,9 @@ dieses Repos.
   kommen.
 - **Quests:** Häfen bieten Lieferungen und Jagden an (bis zu 2 aktiv, 30 Minuten Spielzeit), Quest-Log
   mit grober Richtung, Gold und Ruf als Belohnung; bei Gesucht ist ein Auftrag die Wiedergutmachung.
-  Die Eroberung von Häfen ist geplant:
-  `docs/superpowers/specs/2026-10-17-nationen-ruf-quests-design.md`.
+- **Eroberung:** Häfen fremder Nationen können im Team erobert werden (Fort, Verteidiger-Wellen,
+  Fortschrittsbalken); Hinterland bleibt dauerhaft, Randlagen fallen nach 30 Minuten zurück. Eroberungen
+  stehen in `territory.json` im Volume (zusammen mit `profiles.json` sichern).
 - **Segeln:** WASD, drei Segelstufen (Taste S: voll, Beisegel, gerafft), Kurven kosten Fahrt.
 - **Kampf:** Breitseiten Q/E (beide Seiten: Leertaste), lange Ladezeit, Längsfeuer zählt doppelt,
   Sondermunition (Kettenkugel, Brandgeschoss, Tasten 1–3).
@@ -60,7 +61,7 @@ Es gibt lokal kein Elixir; `./mx` synchronisiert den Quellordner auf den Server 
 und führt `mix` in einem Docker-Container aus.
 
 ```bash
-./mx test               # Tests (275)
+./mx test               # Tests (334)
 ./mx precommit          # Kompilieren (Warnungen = Fehler), Format, Tests; vor jedem Commit
 ./mx deps.update bandit # beliebige mix-Aufgaben, hier ein Abhängigkeits-Update (mix.lock kommt zurück)
 ./mx run scripts/load_test.exs    # Lasttest ohne Netzwerk (Takt-Zeit je Spielerzahl), siehe docs/performance.md
@@ -88,7 +89,7 @@ Betreiber (WebSocket-Upgrade auf `/ws` durchreichen). Konfiguration über `.env`
 ./deploy backup    # Spielstände nach ~/osp-backups auf dem Server kopieren
 ```
 
-Wiederherstellen: die Datei aus `~/osp-backups` nach `/data/profiles.json` im Volume `osp-data` kopieren
+Wiederherstellen: die Dateien aus `~/osp-backups` nach `/data/profiles.json` bzw. `/data/territory.json` im Volume `osp-data` kopieren
 (Container stoppen, kopieren, starten). Ein defektes `profiles.json` wird beim Start nach `.corrupt`
 verschoben und `profiles.json.bak` geladen.
 
@@ -102,6 +103,8 @@ lib/osp/nations.ex      Nationen, Gebiete (Zelle + nächster Hafen), Boni (rein)
 lib/osp/reputation.ex   Ruf je Nation: Stufen, Änderungen, Rückgang (rein)
 lib/osp/fort.ex         Forts der Häfen: Warnung, Schüsse mit Vorhalt, Alarm (rein)
 lib/osp/quests.ex       Quests: Angebote aus Seed/Hafen/Zeitfenster, Fortschritt, Prüfung (rein)
+lib/osp/conquest.ex     Eroberung: Angriff, Verteidiger, Fortschritt, Rückfall (rein)
+lib/osp/territory.ex    Speicher der eroberten Häfen (territory.json)
 lib/osp/wander.ex       Wander-Bot, Ausweichkurs, Befreien festgefahrener NPCs (rein)
 lib/osp/combat.ex       Breitseiten, Kugeln, Längsfeuer, Treffer, Tod, Beute (rein)
 lib/osp/state.ex        Reiner Weltzustand, Zeitschritt, NPC-Steuerung, Schnappschüsse, öffentliche IDs

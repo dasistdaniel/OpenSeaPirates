@@ -29,7 +29,7 @@ Aufwand: S = Stunden, M = ein Abend, L = mehrere Tage.
 
 ## C. Kann (Ausbau, wenn Zeit bleibt)
 
-Nationen, Ruf und Quests (Bausteine 1–3) erledigt; Eroberung (Baustein 4) als nächster Baustein laut Entwurf · Bestenliste über Sitzungen (Rekorde) · Mine und weitere Sondermunition (B4) · Entern von Schiffen ·
+Nationen, Ruf, Quests und Eroberung (Bausteine 1–4) erledigt · Bestenliste über Sitzungen (Rekorde) · Mine und weitere Sondermunition (B4) · Entern von Schiffen ·
 Sprite für gerafftes Segel pro Klasse (bisher nur Segelgröße) · Handel mit Waren zwischen Häfen ·
 Ruf/Kopfgeld · Schiffs-Kosmetik (Flagge, Segelzeichen) · Crew und Offiziere · Wetter/Stürme ·
 Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sounds.
@@ -37,7 +37,7 @@ Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sound
 
 ## Betrieb und Wartung
 
-- **Backups:** `./deploy backup` läuft vor jedem Deploy automatisch. Ein täglicher Cronjob auf dem Server
+- **Backups:** `./deploy backup` läuft vor jedem Deploy automatisch und sichert `profiles.json` und `territory.json`. Ein täglicher Cronjob auf dem Server
   (`./deploy backup` bzw. `cp` von `profiles.json`) fehlt noch.
 - **Abhängigkeiten:** `./mx test` zeigt Sicherheitshinweise zu Hex-Paketen an; `./mx deps.update <paket>`
   aktualisiert (zuletzt bandit 1.13.1, thousand_island 1.6.0).
@@ -48,7 +48,7 @@ Biome mit Schwierigkeitsstufen · Welt pro Raum · Chat · Musik und echte Sound
 ## D. Übergabe (damit es ohne Claude weiterläuft)
 
 - Alles Wichtige steht in `README.md`, `CLAUDE.md`, `docs/handout.md`, `docs/decisions.md`, `docs/upgrades.md`.
-- Tests laufen mit `./mx test` (275 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
+- Tests laufen mit `./mx test` (334 Tests); vor jedem Commit `./mx precommit`. Deploy: `./deploy`.
 - Spiellogik ist in reinen Modulen (`state.ex`, `combat.ex`, `shop.ex`, ...) mit Tests; wer Elixir kann, findet
   sich schnell zurecht. Konstanten stehen oben in den Modulen.
 - Elixir-Grundlagen für Änderungen: die Module sind klein und kommentiert; Client ist reines JavaScript ohne Build.

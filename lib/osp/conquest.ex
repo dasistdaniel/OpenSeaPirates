@@ -203,7 +203,22 @@ defmodule Osp.Conquest do
           st
 
         {x, y, heading, rng} ->
-          State.add_npc(%{st | rng: rng}, :hunter, "Wache #{st.next_id}", x, y, heading, 0, owner)
+          id = "npc-#{st.next_id}"
+
+          st =
+            State.add_npc(
+              %{st | rng: rng},
+              :hunter,
+              "Wache #{st.next_id}",
+              x,
+              y,
+              heading,
+              0,
+              owner
+            )
+
+          # die Wache verteidigt diesen Hafen: sie greift dessen Angreifer an
+          State.update_ship(st, id, &%{&1 | defends: port.id})
       end
     end)
   end

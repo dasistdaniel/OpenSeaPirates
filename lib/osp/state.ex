@@ -150,6 +150,7 @@ defmodule Osp.State do
       rep: Reputation.start(nil),
       quests: [],
       hunting: nil,
+      defends: nil,
       attacked_at: %{},
       class: class,
       upgrades: upgrades,
@@ -812,8 +813,15 @@ defmodule Osp.State do
         %{alive?: true, kind: :hunter} = ship ->
           ship = unstick(ship, solid?)
 
-          # Jäger greifen nur Spieler an, die bei ihrer Nation mindestens Misstrauisch sind
-          hostile? = fn p -> Reputation.hunts?(rep_of(p, ship.nation)) end
+          # Jäger greifen nur Spieler an, die bei ihrer Nation mindestens Misstrauisch sind; Wachen eines
+          # angegriffenen Hafens (`defends`) außerdem alle Angreifer dieses Hafens
+          port = ship.defends && Ports.by_id(acc.seed, ship.defends)
+
+          hostile? = fn p ->
+            Reputation.hunts?(rep_of(p, ship.nation)) or
+              (port != nil and Map.has_key?(acc.assaults, port.id) and
+                 Conquest.attacker?(acc, p, port))
+          end
 
           case nearest_player(acc, ship, @hunter_aggro, hostile?) do
             nil ->

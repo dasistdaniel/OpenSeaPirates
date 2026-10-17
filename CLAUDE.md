@@ -13,7 +13,8 @@
 - Nationen und Gebiete: `Osp.Nations` (rein); die Heimatnation steht im Profil und in `ship.nation`,
   Boni rechnet `Osp.Ships.stats/1` ein. Ruf: `Osp.Reputation`; ob ein Schiff in einer Hafen-Schutzzone geschützt ist, entscheidet
   `State.safe_for?/2` (nicht `Ports.safe?/3`). Quests: `Osp.Quests` (Angebote ohne Speicher), Annehmen/Abgeben in `Osp.State`
-  (`accept_quest/3`, `turn_in/2`). Geplanter Ausbau (Eroberung) mit Entwurf und
+  (`accept_quest/3`, `turn_in/2`). Eroberung: `Osp.Conquest` (rein), Besitz in `state.owners`, Hafen-Nation immer über
+  `State.port_nation/2`; `Osp.Territory` speichert. Entwurf und
   Plänen unter `docs/superpowers/specs` und `docs/superpowers/plans`.
 - **Nie das Spieler-Token an Clients schicken:** nach außen immer `Osp.State.public_id/1`.
 - Richtungen: Kurs im Bogenmaß, Bildschirmkoordinaten (y nach unten), rechts = Kurs + 90°;

@@ -3,7 +3,7 @@
 #   ./deploy          Quellen synchronisieren, Image bauen, Container (neu) starten, auf "healthy" warten
 #   ./deploy logs     Container-Log folgen
 #   ./deploy stop     Container stoppen und entfernen (Spielstände bleiben im Volume)
-#   ./deploy backup   Spielstände (profiles.json) nach ~/osp-backups auf dem Server kopieren
+#   ./deploy backup   Spielstände und Eroberungen (profiles.json, territory.json) nach ~/osp-backups auf dem Server kopieren
 # Die .env liegt nur auf dem Server; beim ersten Lauf wird sie mit Standardwerten angelegt (siehe .env.example).
 set -euo pipefail
 HOST=daniel@192.168.178.20
@@ -14,7 +14,7 @@ case "${1:-}" in
   logs) exec ssh $HOST "cd $DIR && docker compose logs -f --tail 100 osp" ;;
   stop) exec ssh $HOST "cd $DIR && docker compose down" ;;
   backup)
-    ssh $HOST "mkdir -p ~/osp-backups && docker cp osp:/data/profiles.json ~/osp-backups/profiles-\$(date +%Y%m%d-%H%M%S).json && ls -1t ~/osp-backups | head -5"
+    ssh $HOST "mkdir -p ~/osp-backups && stamp=\$(date +%Y%m%d-%H%M%S) && docker cp osp:/data/profiles.json ~/osp-backups/profiles-\$stamp.json && (docker cp osp:/data/territory.json ~/osp-backups/territory-\$stamp.json 2>/dev/null || true) && ls -1t ~/osp-backups | head -6"
     exit 0 ;;
 esac
 
@@ -26,7 +26,7 @@ echo "→ .env prüfen"
 ssh $HOST "cd $DIR && if [ ! -f .env ]; then cp .env.example .env; echo '   .env neu angelegt (Standardwerte)'; else echo '   .env vorhanden'; fi"
 
 echo "→ Sicherung der Spielstände (falls der Container läuft)"
-ssh $HOST "mkdir -p ~/osp-backups && docker cp osp:/data/profiles.json ~/osp-backups/profiles-\$(date +%Y%m%d-%H%M%S).json 2>/dev/null && echo '   gesichert' || echo '   (noch keine Spielstände)'"
+ssh $HOST "mkdir -p ~/osp-backups && stamp=\$(date +%Y%m%d-%H%M%S) && (docker cp osp:/data/territory.json ~/osp-backups/territory-\$stamp.json 2>/dev/null || true) && docker cp osp:/data/profiles.json ~/osp-backups/profiles-\$stamp.json 2>/dev/null && echo '   gesichert' || echo '   (noch keine Spielstände)'"
 
 echo "→ Image bauen und starten"
 ssh $HOST "cd $DIR && docker compose up -d --build"

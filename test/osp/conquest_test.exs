@@ -491,4 +491,41 @@ defmodule Osp.ConquestTest do
       assert second == [b.id]
     end
   end
+
+  describe "Verteidiger kämpfen" do
+    test "eine Wache des angegriffenen Hafens greift den neutralen Angreifer an, ein gewöhnlicher Jäger nicht" do
+      p = port()
+      {hx, hy} = spot(p, 11.0)
+
+      base =
+        new_state()
+        |> join("a1", :france, spot(p, 5.0))
+        |> assault("a1")
+        |> then(
+          &%{
+            &1
+            | assaults:
+                Map.update!(&1.assaults, p.id, fn a -> %{a | wave_at: &1.time + 1_000_000} end)
+          }
+        )
+        |> then(&%{&1 | ships: Map.reject(&1.ships, fn {_, sh} -> sh.kind == :hunter end)})
+
+      guard = State.add_npc(base, :hunter, "Wache", hx, hy, 0.0, 0, :england)
+      guard = State.update_ship(guard, "npc-1", &%{&1 | defends: p.id})
+      {_, ev} = run(guard, 15_000)
+      assert ev?(ev, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+
+      plain = State.add_npc(base, :hunter, "Jäger", hx, hy, 0.0, 0, :england)
+      {_, ev2} = run(plain, 15_000)
+      refute ev?(ev2, &match?({:fire, "npc-" <> _, _, _, _}, &1))
+    end
+
+    test "gespawnte Verteidiger tragen die Verteidigungs-Kennung ihres Hafens" do
+      p = port()
+      st = new_state() |> join("a1", :france, spot(p, 5.0)) |> assault("a1")
+      {st, _} = Conquest.step(st, 25)
+      guards = st.ships |> Map.values() |> Enum.filter(&(&1.kind == :hunter))
+      assert guards != [] and Enum.all?(guards, &(&1.defends == p.id))
+    end
+  end
 end
