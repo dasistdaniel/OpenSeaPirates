@@ -16,6 +16,7 @@ defmodule Osp.State do
     Hunter,
     Nations,
     Ports,
+    Reputation,
     Sailing,
     Ships,
     Shop,
@@ -126,6 +127,7 @@ defmodule Osp.State do
       kind: kind,
       nation: nil,
       terr: nil,
+      rep: Reputation.start(nil),
       class: class,
       upgrades: upgrades,
       color: color,
@@ -198,6 +200,34 @@ defmodule Osp.State do
     else
       Enum.find_value(2..99, fn n -> if "#{base} #{n}" not in taken, do: "#{base} #{n}" end) ||
         name
+    end
+  end
+
+  @doc "Ruf des Schiffs bei einer Nation (0 ohne Eintrag)."
+  def rep_of(ship, nation), do: Reputation.get(Map.get(ship, :rep, %{}), nation)
+
+  @doc """
+  Ruf eines Spielers bei `nation` um `delta` ändern (begrenzt). Gibt `{state, events}` zurück mit
+  `{:rep, id, nation, angewandte_änderung, neuer_wert, x, y}`; ohne tatsächliche Änderung oder für
+  Unbekannte keine Änderung und keine Ereignisse.
+  """
+  @spec add_rep(t(), term(), atom(), integer()) :: {t(), list()}
+  def add_rep(state, id, nation, delta) do
+    case state.ships[id] do
+      nil ->
+        {state, []}
+
+      ship ->
+        old = rep_of(ship, nation)
+        rep = Reputation.add(ship.rep, nation, delta)
+        new = Reputation.get(rep, nation)
+
+        if new == old do
+          {state, []}
+        else
+          {put_ship(state, id, %{ship | rep: rep}),
+           [{:rep, id, nation, new - old, new, ship.x, ship.y}]}
+        end
     end
   end
 
@@ -416,6 +446,7 @@ defmodule Osp.State do
     state = %{state | time: state.time + ms}
     state = turn_wind(state)
     state = update_territory(state)
+    state = decay_reputation(state)
     {state, npc_events} = think_npcs(state)
     state = Director.step(state)
     solid? = fn x, y -> Terrain.land?(state.seed, x, y) end
@@ -467,6 +498,20 @@ defmodule Osp.State do
 
         other ->
           other
+      end)
+
+    %{state | ships: ships}
+  end
+
+  # Ruf nähert sich alle 10 Minuten Spielzeit um 1 der 0 (für lebende Spieler)
+  @rep_decay_ms 600_000
+  defp decay_reputation(%{time: t} = state) when rem(t, @rep_decay_ms) != 0, do: state
+
+  defp decay_reputation(state) do
+    ships =
+      Map.new(state.ships, fn
+        {id, %{kind: :player, alive?: true} = s} -> {id, %{s | rep: Reputation.decay(s.rep)}}
+        other -> other
       end)
 
     %{state | ships: ships}
@@ -656,6 +701,7 @@ defmodule Osp.State do
             as: Atom.to_string(me.ammo_sel),
             sa: Atom.to_string(me.sail),
             tn: nation_string(me.terr),
+            rp: for(n <- Nations.all(), do: Reputation.get(me.rep, n)),
             dk: me.docked && me.docked.name,
             np:
               case Ports.dockable(state.seed, me.x, me.y) do
@@ -728,6 +774,9 @@ defmodule Osp.State do
 
   defp event_entry({:hit, v, by, amount, x, y}),
     do: {x, y, ["hit", public_id(v), public_id(by), amount, r2(x), r2(y)]}
+
+  defp event_entry({:rep, id, nation, delta, value, x, y}),
+    do: {x, y, ["rep", public_id(id), Atom.to_string(nation), delta, value, r2(x), r2(y)]}
 
   defp event_entry({:rake, x, y}), do: {x, y, ["rake", r2(x), r2(y)]}
 

@@ -8,9 +8,9 @@ defmodule Osp.Profile do
   manipulierte Datei nie das Spiel zum Absturz bringt (unbekannte Klasse → Startschiff usw.).
   """
 
-  alias Osp.{Nations, Ships, Shop}
+  alias Osp.{Nations, Reputation, Ships, Shop}
 
-  @version 2
+  @version 3
   @max_gold 100_000_000
   @classes Map.new(Ships.order(), &{Atom.to_string(&1), &1})
   @slots %{"cannons" => :cannons, "hull" => :hull, "sails" => :sails}
@@ -21,6 +21,7 @@ defmodule Osp.Profile do
       "v" => @version,
       "name" => "",
       "nation" => nil,
+      "rep" => rep_strings(Reputation.start(nil)),
       "gold" => 0,
       "bank" => 0,
       "class" => "schaluppe",
@@ -38,6 +39,7 @@ defmodule Osp.Profile do
       "v" => @version,
       "name" => ship.name,
       "nation" => ship |> Map.get(:nation) |> nation_string(),
+      "rep" => ship |> Map.get(:rep, Reputation.start(nil)) |> rep_strings(),
       "gold" => ship.gold,
       "bank" => ship.bank,
       "class" => Atom.to_string(ship.class),
@@ -64,6 +66,7 @@ defmodule Osp.Profile do
       "v" => @version,
       "name" => if(is_binary(raw["name"]), do: String.slice(raw["name"], 0, 20), else: ""),
       "nation" => raw["nation"] |> Nations.parse() |> nation_from_parse(),
+      "rep" => decode_rep(raw["rep"]),
       "gold" => int(raw["gold"], 0, @max_gold),
       "bank" => int(raw["bank"], 0, @max_gold),
       "class" => if(Map.has_key?(@classes, raw["class"]), do: raw["class"], else: "schaluppe"),
@@ -90,6 +93,7 @@ defmodule Osp.Profile do
     base = %{
       ship
       | nation: nation_atom(p["nation"]),
+        rep: rep_atoms(p["rep"], nation_atom(p["nation"])),
         class: Map.fetch!(@classes, p["class"]),
         upgrades: Map.new(@slots, fn {key, slot} -> {slot, p["upgrades"][key]} end),
         gold: p["gold"],
@@ -102,6 +106,25 @@ defmodule Osp.Profile do
     stats = Ships.stats(base)
     %{base | max_hp: stats.max_hp, hp: stats.max_hp * 1.0, radius: stats.radius}
   end
+
+  # Ruf als Map mit String-Schlüsseln (JSON); fehlt er im gespeicherten Stand ganz, bleibt `nil` und
+  # `apply/2` setzt den Startruf der Heimatnation (altes Profil)
+  defp decode_rep(%{} = raw) do
+    Map.new(Nations.all(), fn n ->
+      key = Atom.to_string(n)
+      v = raw[key]
+      {key, if(is_number(v), do: int(v, -100, 100), else: 0)}
+    end)
+  end
+
+  defp decode_rep(_other), do: nil
+
+  defp rep_strings(rep), do: Map.new(rep, fn {n, v} -> {Atom.to_string(n), v} end)
+
+  defp rep_atoms(nil, home), do: Reputation.start(home)
+
+  defp rep_atoms(%{} = rep, _home),
+    do: Map.new(Nations.all(), fn n -> {n, Map.get(rep, Atom.to_string(n), 0)} end)
 
   defp nation_string(nil), do: nil
   defp nation_string(nation), do: Atom.to_string(nation)

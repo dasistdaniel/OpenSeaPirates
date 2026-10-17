@@ -235,7 +235,13 @@ defmodule Osp.World do
       decoded
     else
       nation = wanted || Enum.at(Osp.Nations.all(), :erlang.phash2({:nation, id}, 5))
-      Map.put(decoded, "nation", Atom.to_string(nation))
+
+      decoded
+      |> Map.put("nation", Atom.to_string(nation))
+      |> Map.put(
+        "rep",
+        Map.new(Osp.Reputation.start(nation), fn {n, v} -> {Atom.to_string(n), v} end)
+      )
     end
   end
 
