@@ -37,7 +37,7 @@ export class Shop {
     this.net = net
     this.color = 0
     this.open = false
-    this.tab = "yard"
+    this.tab = "trade"
     this.last = null
     root.addEventListener("click", (e) => this.click(e))
   }
@@ -153,7 +153,7 @@ export class Shop {
           <div class="money"><span>🪙 ${v.gold}</span></div>
           <button class="ghost" data-act="undock">Ablegen (F)</button>
         </header>
-        <div class="hostile">
+        <div class="hostile tabbody">
           <h3>${nation} verkauft dir nichts mehr</h3>
           <p>Du bist hier <b>gesucht</b> (Ruf ${signed(v.rep)}). Schiffe, Ausrüstung, Munition, Reparatur und Bank sind gesperrt,
             und die Schutzzone gilt für dich nicht. Erledige einen Auftrag zur Wiedergutmachung, um wieder Handel zu treiben.</p>
@@ -215,28 +215,33 @@ export class Shop {
 
     const q = v.quests || { offers: [], active: [] }
     const pages = {
-      yard: `
-        <h3>Reparatur</h3>
-        <div class="row"><div class="grow"><b>Reparatur</b><small>${v.hp} / ${v.max_hp} HP · ${v.repair.per_hp} Gold je HP</small></div>
-          <button data-act="repair" ${v.repair.cost > 0 && v.gold >= v.repair.per_hp ? "" : "disabled"}>${v.repair.cost} 🪙</button></div>
-        <h3>Ausrüstung</h3>${upgrades}
-        <h3>Munition <small>Tasten 1–3 im Gefecht</small></h3>${ammo}
-        <h3>Bank <small>sicher vor Verlust beim Tod</small></h3>
-        <div class="row bank">
-          <button data-act="bank" data-op="deposit" data-amount="50" ${v.gold >= 50 ? "" : "disabled"}>+50</button>
-          <button data-act="bank" data-op="deposit" data-amount="all" ${v.gold > 0 ? "" : "disabled"}>Alles einzahlen</button>
-          <button data-act="bank" data-op="withdraw" data-amount="50" ${v.bank >= 50 ? "" : "disabled"}>−50</button>
-          <button data-act="bank" data-op="withdraw" data-amount="all" ${v.bank > 0 ? "" : "disabled"}>Alles abheben</button>
+      trade: `
+        <div class="cols">
+          <section><h3>Schiffe <small>Inzahlungnahme 50 %</small></h3><div class="cards">${classes}</div></section>
+          <section>
+            <h3>Reparatur</h3>
+            <div class="row"><div class="grow"><b>Reparatur</b><small>${v.hp} / ${v.max_hp} HP · ${v.repair.per_hp} Gold je HP</small></div>
+              <button data-act="repair" ${v.repair.cost > 0 && v.gold >= v.repair.per_hp ? "" : "disabled"}>${v.repair.cost} 🪙</button></div>
+            <h3>Ausrüstung</h3>${upgrades}
+            <h3>Munition <small>Tasten 1–3 im Gefecht</small></h3>${ammo}
+            <h3>Bank <small>sicher vor Verlust beim Tod</small></h3>
+            <div class="row bank">
+              <button data-act="bank" data-op="deposit" data-amount="50" ${v.gold >= 50 ? "" : "disabled"}>+50</button>
+              <button data-act="bank" data-op="deposit" data-amount="all" ${v.gold > 0 ? "" : "disabled"}>Alles einzahlen</button>
+              <button data-act="bank" data-op="withdraw" data-amount="50" ${v.bank >= 50 ? "" : "disabled"}>−50</button>
+              <button data-act="bank" data-op="withdraw" data-amount="all" ${v.bank > 0 ? "" : "disabled"}>Alles abheben</button>
+            </div>
+          </section>
         </div>`,
-      quests: this.questsHtml(v, q.offers || []),
-      rep: this.repsHtml(v),
+      quests: `<h3>Aufträge</h3>${this.questsHtml(v, q.offers || [])}`,
+      rep: `<h3>Ruf</h3>${this.repsHtml(v)}`,
     }
     const tabs = [
-      ["yard", "Reparatur & Ausrüstung"],
-      ["quests", `Aufträge${q.active.length ? ` (${q.active.length})` : ""}`],
+      ["trade", "Händler"],
+      ["quests", `Aufgaben${q.active.length ? ` (${q.active.length})` : ""}`],
       ["rep", "Ruf"],
     ]
-    if (!pages[this.tab]) this.tab = "yard"
+    if (!pages[this.tab]) this.tab = "trade"
 
     this.root.innerHTML = `
       <div class="panel">
@@ -245,15 +250,10 @@ export class Shop {
           <div class="money"><span>🪙 ${v.gold}</span><span class="muted">Bank ${v.bank}</span></div>
           <button class="ghost" data-act="undock">Ablegen (F)</button>
         </header>
-        <div class="cols">
-          <section><h3>Schiffe <small>Inzahlungnahme 50 %</small></h3><div class="cards">${classes}</div></section>
-          <section>
-            <nav class="tabs">
-              ${tabs.map(([id, label]) => `<button class="tab ${id === this.tab ? "on" : ""}" data-act="tab" data-id="${id}">${label}</button>`).join("")}
-            </nav>
-            ${pages[this.tab]}
-          </section>
-        </div>
+        <nav class="tabs">
+          ${tabs.map(([id, label]) => `<button class="tab ${id === this.tab ? "on" : ""}" data-act="tab" data-id="${id}">${label}</button>`).join("")}
+        </nav>
+        <div class="tabbody">${pages[this.tab]}</div>
       </div>`
   }
 }

@@ -176,19 +176,21 @@ kbd {
 
 #shop .panel {
   width: min(96vw, 980px);
-  max-height: 92vh;
-  overflow: auto;
+  height: min(94vh, 680px); /* feste Größe: kein Springen beim Tabwechsel */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(8, 20, 34, 0.96);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
   padding: 18px 20px 20px;
 }
-#shop header { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; }
+#shop header { flex: none; display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
 #shop header > div:first-child { flex: 1; }
 #shop .kicker { color: var(--gold); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; }
 #shop h2 { margin: 2px 0 0; font-size: 26px; }
-#shop h3 { margin: 16px 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+#shop h3 { margin: 9px 0 4px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 #shop h3 small, #shop small { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
 #shop h3:first-child { margin-top: 0; }
 #shop .money { display: grid; text-align: right; font-weight: 800; font-size: 18px; color: var(--gold); }
@@ -208,13 +210,14 @@ kbd {
   background: rgba(255, 255, 255, 0.03);
 }
 #shop .card.current { border-color: rgba(251, 191, 36, 0.6); background: rgba(251, 191, 36, 0.07); }
-#shop .card img { width: 54px; height: 76px; object-fit: contain; }
+#shop .card img { width: 44px; height: 62px; object-fit: contain; }
 #shop .card h4 { margin: 0; font-size: 15px; }
 #shop .card .blurb { margin: 2px 0; color: var(--muted); font-size: 12px; }
 #shop .card .stats { margin: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 
-#shop .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
-#shop .row .grow { flex: 1; display: grid; gap: 1px; }
+#shop .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+#shop .row .grow { flex: 1; display: block; }
+#shop .row .grow small { margin-left: 8px; }
 #shop .row.bank { flex-wrap: wrap; border: 0; }
 #shop .pips { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
 #shop .pips i { width: 12px; height: 8px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); }
@@ -236,7 +239,8 @@ kbd {
 #shop button:active:not(:disabled) { transform: scale(0.97); }
 #shop button:disabled { background: rgba(255, 255, 255, 0.1); color: var(--muted); cursor: not-allowed; }
 #shop button.ghost { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-#shop .tabs { display: flex; gap: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+#shop .tabbody { flex: 1; min-height: 0; overflow: auto; }
+#shop .tabs { flex: none; display: flex; gap: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
 #shop .tabs .tab { border-radius: 9px 9px 0 0; background: transparent; color: var(--muted); }
 #shop .tabs .tab.on { background: rgba(251, 191, 36, 0.15); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold); }
 #shop .tabs .tab:hover:not(:disabled) { color: var(--text); filter: none; }
