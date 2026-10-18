@@ -454,7 +454,7 @@ defmodule Osp.State do
   defp quests_view(state, %{docked: %{id: port_id}} = ship, wanted?) do
     case Ports.by_id(state.seed, port_id) do
       nil ->
-        %{offers: [], atone: [], active: Enum.map(ship.quests, &quest_view/1)}
+        %{offers: [], atone: [], active: Enum.map(ship.quests, &quest_view(&1, state.seed))}
 
       port ->
         window = Quests.window(state.time)
@@ -471,7 +471,7 @@ defmodule Osp.State do
                 ),
               else: []
             ),
-          active: Enum.map(ship.quests, &quest_view/1)
+          active: Enum.map(ship.quests, &quest_view(&1, state.seed))
         }
     end
   end
@@ -1010,7 +1010,7 @@ defmodule Osp.State do
             sa: Atom.to_string(me.sail),
             tn: nation_string(me.terr),
             rp: for(n <- Nations.all(), do: Reputation.get(me.rep, n)),
-            q: Enum.map(me.quests, &quest_view/1),
+            q: Enum.map(me.quests, &quest_view(&1, state.seed)),
             dk: me.docked && me.docked.name,
             np:
               case Ports.dockable(state.seed, me.x, me.y) do
@@ -1068,14 +1068,22 @@ defmodule Osp.State do
   end
 
   # Eine aktive Quest für den Schnappschuss (grobe Richtung, keine exakten Koordinaten)
-  defp quest_view(q) do
+  defp quest_view(q, seed) do
     {hx, hy} = Map.get(q, :hint) || {nil, nil}
+    from = Ports.by_id(seed, q.from)
+    target = q.to && Ports.by_id(seed, q.to)
+
+    dist =
+      if from && target,
+        do: round(:math.sqrt(:math.pow(from.x - target.x, 2) + :math.pow(from.y - target.y, 2))),
+        else: nil
 
     %{
       id: q.id,
       k: Atom.to_string(q.kind),
       n: Atom.to_string(q.nation),
-      to: Map.get(q, :to_name),
+      to: target && target.name,
+      dist: dist,
       hx: hx,
       hy: hy,
       tn: q.target_nation && Atom.to_string(q.target_nation),
