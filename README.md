@@ -129,3 +129,5 @@ test/osp/               ExUnit-Tests der reinen Module und des Protokolls
 
 Grafik: [Kenney Pirate Pack](https://kenney.nl/assets/pirate-pack) (CC0), Lizenztext unter
 `priv/static/images/`.
+
+Lizenz: Code unter der [MIT-Lizenz](LICENSE). Die Grafiken stehen unter ihren eigenen Lizenzen (siehe oben).
