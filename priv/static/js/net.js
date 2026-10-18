@@ -23,6 +23,7 @@ export class Net {
     this.ws = null
     this.name = ""
     this.nation = null // gewählte Heimatnation (nur bis das Profil sie kennt, sonst reicht das Token)
+    this.reset = false // einmalig: beim nächsten Beitritt neu anfangen (Profil wird nach der Nationswahl gelöscht)
     this.wanted = false
     this.retry = 0
     this.token = playerToken()
@@ -62,7 +63,8 @@ export class Net {
       this.joined = false
       this.lastMsg = performance.now()
       this.h.onStatus?.(null)
-      this.send({ t: "join", token: this.token, name: this.name, ...(this.nation ? { nation: this.nation } : {}) })
+      this.send({ t: "join", token: this.token, name: this.name, ...(this.nation ? { nation: this.nation } : {}), ...(this.reset ? { reset: true } : {}) })
+      this.reset = false
     }
 
     ws.onmessage = (ev) => {

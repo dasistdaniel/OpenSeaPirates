@@ -5,7 +5,9 @@ defmodule Osp.Web.Socket do
   **Client → Server** (JSON-Text):
 
     * `{"t":"join","token":"...","name":"...","nation":"spain"}` – beitreten (genau einmal, zuerst);
-      `nation` ist nur nötig, solange das Profil noch keine Heimatnation hat
+      `nation` ist nur nötig, solange das Profil noch keine Heimatnation hat; mit `"reset":true` will der
+      Spieler neu anfangen: der Server fragt per `nation_required` nach der Nation und löscht das Profil
+      erst beim Join mit der gewählten Nation
     * `{"t":"input","u":bool,"l":bool,"r":bool}` – Tastenzustand
     * `{"t":"chunk","cx":int,"cy":int}` – Geländeblock anfordern
     * `{"t":"fire","side":"left"|"right"}` – Breitseite (Q = links, E = rechts)
@@ -122,11 +124,22 @@ defmodule Osp.Web.Socket do
     if valid_token?(token) and World.alive?(state.world) do
       name = clean_name(msg["name"], token)
       nation = chosen_nation(msg["nation"])
+      # Neu anfangen: gelöscht wird erst, wenn die neue Nation gewählt ist (Abbruch ändert nichts)
+      reset? = msg["reset"] == true or Map.get(state, :reset_pending, false)
 
-      if stored_nation(token) == nil and nation == nil do
-        {:push, {:text, Jason.encode!(nation_required())}, state}
-      else
-        do_join(token, name, nation, state)
+      cond do
+        reset? and nation == nil ->
+          {:push, {:text, Jason.encode!(nation_required())}, Map.put(state, :reset_pending, true)}
+
+        reset? ->
+          :ok = World.reset(state.world, token)
+          do_join(token, name, nation, Map.put(state, :reset_pending, false))
+
+        stored_nation(token) == nil and nation == nil ->
+          {:push, {:text, Jason.encode!(nation_required())}, state}
+
+        true ->
+          do_join(token, name, nation, state)
       end
     else
       {:stop, :normal, 1008, state}

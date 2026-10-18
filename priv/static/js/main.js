@@ -13,6 +13,8 @@ import { NATIONS, standing } from "./nations.js"
 import { Shop } from "./shop.js"
 
 const NAME_KEY = "osp-name"
+const PLAYED_KEY = "osp-played"
+const RESET_KEY = "osp-autoreset"
 const $ = (id) => document.getElementById(id)
 
 const statusEl = $("status")
@@ -42,6 +44,7 @@ const net = new Net({
     input.releaseAll()
     myId = msg.you
     joined = true
+    try { localStorage.setItem(PLAYED_KEY, "1") } catch (_) {}
     input.enabled = true
     $("join").hidden = true
     $("nation").hidden = true
@@ -83,7 +86,7 @@ const chunks = new Chunks(net)
 const input = new Input({
   onKeys: (k) => net.send({ t: "input", u: k.u, l: k.l, r: k.r }),
   onFire: (side) => net.send({ t: "fire", side }),
-  onMute: () => sound.toggle(),
+  onMute: () => { sound.toggle(); syncPause() },
   onAmmo: (kind) => net.send({ t: "ammo", kind }),
   onHelp: () => toggleHelp(),
   // S schaltet die Segelstufe weiter: voll → Beisegel → gerafft → voll. Schnelles Mehrfachdrücken
@@ -98,9 +101,14 @@ const input = new Input({
     sound.play("sail", 0.8)
   },
   // F: andocken oder ablegen; Esc (nur ablegen)
-  onDock: (onlyUndock) => {
-    if (docked) net.send({ t: "undock" })
-    else if (!onlyUndock) net.send({ t: "dock" })
+  onDock: () => net.send({ t: docked ? "undock" : "dock" }),
+  // ESC: zuerst offene Fenster schließen, im Hafen ablegen, sonst das Menü umschalten
+  onEscape: () => {
+    if (!helpEl.hidden) toggleHelp(false)
+    else if (!$("restart").hidden) $("restart").hidden = true
+    else if (!pauseEl.hidden) pauseEl.hidden = true
+    else if (docked) net.send({ t: "undock" })
+    else togglePause(true)
   },
 })
 const renderer = new Renderer($("game"), chunks)
@@ -276,6 +284,7 @@ function showNationPicker(nations) {
     const bonus = Object.assign(document.createElement("span"), { className: "bonus", textContent: n.bonus })
     b.append(img, name, bonus)
     b.addEventListener("click", () => {
+      sound.start()
       $("nation").hidden = true
       net.chooseNation(n.id)
     })
@@ -323,7 +332,45 @@ function toggleHelp(force) {
 $("help-btn").addEventListener("click", () => toggleHelp())
 $("help-close").addEventListener("click", () => toggleHelp(false))
 helpEl.addEventListener("click", (e) => { if (e.target === helpEl) toggleHelp(false) })
-window.addEventListener("keydown", (e) => { if (e.code === "Escape" && !helpEl.hidden) toggleHelp(false) })
+// Vor dem Beitritt (Eingabe noch gesperrt) schließt ESC Hilfe und Rückfrage selbst
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "Escape" || joined) return
+  if (!helpEl.hidden) toggleHelp(false)
+  else if (!$("restart").hidden) $("restart").hidden = true
+})
+
+// --- ESC-Menü ---------------------------------------------------------------------------
+// Das Spiel läuft im Menü weiter: das Schiff bleibt in der Welt und kann angegriffen werden.
+const pauseEl = $("pause")
+function togglePause(show) {
+  pauseEl.hidden = !show
+  if (show) input.releaseAll()
+}
+function syncPause() {
+  $("pause-mute").textContent = sound.muted ? "Ton einschalten (M)" : "Ton ausschalten (M)"
+}
+$("pause-resume").addEventListener("click", () => togglePause(false))
+$("pause-help").addEventListener("click", () => { togglePause(false); toggleHelp(true) })
+$("pause-mute").addEventListener("click", () => { sound.toggle(); syncPause() })
+$("pause-restart").addEventListener("click", () => { togglePause(false); $("restart").hidden = false })
+$("pause-leave").addEventListener("click", () => leaveGame())
+pauseEl.addEventListener("click", (e) => { if (e.target === pauseEl) togglePause(false) })
+const pauseVol = $("pause-volume")
+pauseVol.value = String(Math.round(sound.volume * 100))
+pauseVol.addEventListener("input", () => { sound.setVolume(Number(pauseVol.value) / 100); vol.value = pauseVol.value })
+// Menü zeigt immer den aktuellen Tonzustand
+const pauseObserver = new MutationObserver(syncPause)
+pauseObserver.observe(pauseEl, { attributes: true, attributeFilter: ["hidden"] })
+syncPause()
+
+// Spiel verlassen: Verbindung schließen und zum Startbildschirm (Neuladen). Das Schiff bleibt kurz in
+// der Welt (Schutzblase), dann verschwindet es.
+function leaveGame(autoReset) {
+  net.wanted = false
+  net.ws && net.ws.close()
+  if (autoReset) { try { sessionStorage.setItem(RESET_KEY, "1") } catch (_) {} }
+  location.reload()
+}
 
 const vol = $("volume")
 vol.value = String(Math.round(sound.volume * 100))
@@ -333,6 +380,34 @@ vol.addEventListener("input", () => sound.setVolume(Number(vol.value) / 100))
 const nameInput = $("name")
 try { nameInput.value = localStorage.getItem(NAME_KEY) || "" } catch (_) {}
 nameInput.focus()
+
+// Neu anfangen: der Link erscheint nur, wenn dieser Browser schon gespielt hat; erst nach der Bestätigung
+// und der Nationswahl löscht der Server das Profil
+let played = false
+try { played = localStorage.getItem(PLAYED_KEY) === "1" } catch (_) {}
+$("restart-link").hidden = !played
+$("restart-link").addEventListener("click", () => ($("restart").hidden = false))
+$("restart-cancel").addEventListener("click", () => ($("restart").hidden = true))
+$("restart-confirm").addEventListener("click", () => {
+  $("restart").hidden = true
+  if (joined) return leaveGame(true)
+  startReset()
+})
+function startReset() {
+  const name = nameInput.value.trim()
+  try { localStorage.setItem(NAME_KEY, name) } catch (_) {}
+  sound.start()
+  net.reset = true
+  net.connect(name)
+  $("join-button").disabled = true
+}
+// Nach „Neu anfangen“ aus dem ESC-Menü: Seite wurde neu geladen, die Rückfrage war schon bestätigt
+let autoReset = false
+try {
+  autoReset = sessionStorage.getItem(RESET_KEY) === "1"
+  sessionStorage.removeItem(RESET_KEY)
+} catch (_) {}
+if (autoReset) startReset()
 
 $("join-form").addEventListener("submit", (e) => {
   e.preventDefault()

@@ -72,6 +72,12 @@ defmodule Osp.World do
   """
   def quest(world, id, op), do: GenServer.cast(via(world), {:quest, id, op})
 
+  @doc """
+  Neu anfangen: der Spieler `id` verliert Schiff, Gold, Bank, Upgrades, Munition, Ruf, Aufträge und
+  Statistik und kann beim nächsten Beitritt eine andere Heimatnation wählen. Das Schiff verschwindet sofort.
+  """
+  def reset(world, id), do: GenServer.call(via(world), {:reset, id})
+
   @doc "Spieler verlässt die Welt sofort."
   def leave(world, id), do: GenServer.cast(via(world), {:leave, id})
 
@@ -120,6 +126,21 @@ defmodule Osp.World do
     else
       {:reply, {:error, :full}, state}
     end
+  end
+
+  # Neu anfangen: Schiff ohne Speichern aus der Welt nehmen und das Profil auf den Stand eines neuen
+  # Spielers setzen (Heimatnation leer, der nächste Beitritt bekommt die neue Wahl).
+  def handle_call({:reset, id}, _from, state) do
+    state = detach(state, id)
+    Profiles.put(id, Profile.new())
+
+    {:reply, :ok,
+     %{
+       state
+       | sim: State.leave(state.sim, id),
+         pids: Map.delete(state.pids, id),
+         saved: Map.delete(state.saved, id)
+     }}
   end
 
   def handle_call(:seed, _from, state), do: {:reply, state.sim.seed, state}

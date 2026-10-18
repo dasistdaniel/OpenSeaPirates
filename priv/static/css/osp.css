@@ -409,3 +409,86 @@ kbd {
 #quest-log .meta { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 #quest-log .arrow { display: inline-block; width: 14px; text-align: center; color: var(--gold); }
 .card h4, h4 { margin-top: 12px; }
+
+/* --- Neu anfangen ---------------------------------------------------------------------- */
+#restart-link {
+  margin-top: 10px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#restart-link:hover { color: var(--text); }
+#join-form #restart-link { width: auto; padding: 0; border: 0; background: none; display: block; margin: 10px auto 0; font-weight: 400; }
+#restart-link[hidden] { display: none; }
+#restart {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 16, 28, 0.88);
+}
+#restart[hidden] { display: none; }
+#restart .panel {
+  width: min(520px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+#restart h2 { margin: 0 0 8px; }
+#restart ul { margin: 8px 0 12px; padding-left: 20px; line-height: 1.6; }
+#restart .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+#restart button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+#restart button.danger { background: #dc2626; color: #fff; }
+#restart button:hover { filter: brightness(1.1); }
+
+/* --- ESC-Menü -------------------------------------------------------------------------- */
+#pause {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 16, 28, 0.7);
+  backdrop-filter: blur(2px);
+}
+#pause[hidden] { display: none; }
+#pause .panel {
+  width: min(340px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+#pause h2 { margin: 0; }
+#pause .note { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
+#pause button {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#pause button:hover { background: rgba(255, 255, 255, 0.14); }
+#pause #pause-resume { background: var(--gold); border-color: transparent; color: #1c1204; font-weight: 700; }
+#pause #pause-leave { color: #fca5a5; }
+#pause .vol { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 13px; }
+#pause .vol input { flex: 1; }

@@ -14,7 +14,7 @@ dieses Repos.
 - **Welt:** unendlich, Chunks aus einem Seed, Wind (dreht alle 30 s), Minikarte, Zoom (Mausrad) und
   Wegpunkte (Mausklick).
 - **Nationen:** fünf Nationen mit Gebieten (aus Seed und Häfen), Flagge vor dem Namen, Wahl der
-  Heimatnation beim ersten Beitritt mit kleinem Bonus, Start im Heimatgebiet.
+  Heimatnation beim ersten Beitritt mit kleinem Bonus, Start im Heimatgebiet. „Neu anfangen“ auf dem Beitrittsbildschirm setzt den Spielstand zurück und erlaubt eine neue Nation.
 - **Ruf:** je Nation −100..+100; Abschüsse von Händlern und Jägern senken ihn (Notwehr gegen
   angreifende Jäger nicht). Jäger greifen ab Ruf −10 an. Bei Gesucht (≤ −40) sperrt der Hafen Shop und
   Bank (nur Wiedergutmachung gegen Gold), die Schutzzone entfällt, das Fort schießt und zwei Jäger

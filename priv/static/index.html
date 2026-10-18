@@ -87,6 +87,7 @@
               <tr><td>Klick auf die Minikarte</td><td>Wegpunkt setzen, auch weit entfernt (Rechtsklick entfernt ihn); Häfen zeigt ein Quadrat in der Farbe der Nation, die Maus darüber nennt den Namen</td></tr>
               <tr><td>Linksklick / Rechtsklick</td><td>Wegpunkt setzen oder entfernen / nächsten entfernen (verschwindet bei Ankunft)</td></tr>
               <tr><td><kbd>F</kbd></td><td>im Hafen andocken und ablegen</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Menü (Weiterspielen, Ton, Neu anfangen, Spiel verlassen); im Hafen: ablegen</td></tr>
               <tr><td><kbd>H</kbd></td><td>diese Hilfe</td></tr>
               <tr><td><kbd>M</kbd></td><td>Ton aus/an</td></tr>
             </table>
@@ -113,6 +114,40 @@
 
     <div id="quest-log" hidden></div>
 
+    <div id="pause" hidden>
+      <div class="panel">
+        <p class="kicker">Pause</p>
+        <h2>Menü</h2>
+        <p class="note">Das Spiel läuft weiter, dein Schiff bleibt in der Welt.</p>
+        <button type="button" id="pause-resume">Weiterspielen (Esc)</button>
+        <button type="button" id="pause-help">Hilfe (H)</button>
+        <button type="button" id="pause-mute">Ton ausschalten (M)</button>
+        <label class="vol">Lautstärke <input id="pause-volume" type="range" min="0" max="100" step="5" /></label>
+        <button type="button" id="pause-restart">Neu anfangen / Nation wechseln</button>
+        <button type="button" id="pause-leave">Spiel verlassen</button>
+      </div>
+    </div>
+
+    <div id="restart" hidden>
+      <div class="panel">
+        <p class="kicker">Neu anfangen</p>
+        <h2>Alles zurücksetzen?</h2>
+        <p class="lead">Du startest mit einem neuen Kapitän und darfst eine andere Heimatnation wählen. <b>Das geht dabei verloren:</b></p>
+        <ul>
+          <li>dein Schiff und alle Upgrades (du startest wieder mit der Schaluppe)</li>
+          <li>Gold und alles auf der Bank</li>
+          <li>Munition und angenommene Aufträge</li>
+          <li>dein Ruf bei allen fünf Nationen</li>
+          <li>deine Statistik (Abschüsse und Tode)</li>
+        </ul>
+        <p class="lead">Eroberte Häfen gehören der Welt und bleiben, wie sie sind. Das lässt sich nicht rückgängig machen.</p>
+        <div class="actions">
+          <button type="button" id="restart-cancel" class="ghost">Abbrechen</button>
+          <button type="button" id="restart-confirm" class="danger">Alles löschen und neu anfangen</button>
+        </div>
+      </div>
+    </div>
+
     <div id="join">
       <form id="join-form" autocomplete="off">
         <p class="kicker">Offene See</p>
@@ -121,6 +156,7 @@
         <label for="name">Name des Kapitäns</label>
         <input id="name" name="name" maxlength="20" placeholder="Pirat" />
         <button type="submit" id="join-button">Segel setzen</button>
+        <button type="button" id="restart-link" hidden>Neu anfangen / Nation wechseln</button>
         <p class="keys">
           <kbd>W</kbd> <kbd>A</kbd> <kbd>D</kbd> fahren · <kbd>Q</kbd> / <kbd>E</kbd> Breitseite links/rechts · <kbd>Leertaste</kbd> beide<br />
           <kbd>S</kbd> Segelstufe · <kbd>F</kbd> im Hafen andocken · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Munition · <kbd>M</kbd> Ton · <kbd>H</kbd> Hilfe

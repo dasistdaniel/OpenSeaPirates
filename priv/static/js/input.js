@@ -3,10 +3,10 @@
 // S = Segelstufe weiterschalten (volle Segel → Beisegel → gerafft → volle Segel), M = Ton.
 
 export class Input {
-  constructor({ onKeys, onFire, onMute, onDock, onAmmo, onHelp, onSail }) {
+  constructor({ onKeys, onFire, onMute, onDock, onEscape, onAmmo, onHelp, onSail }) {
     this.keys = { u: false, l: false, r: false }
     this.firing = { left: false, right: false }
-    this.h = { onKeys, onFire, onMute, onDock, onAmmo, onHelp, onSail }
+    this.h = { onKeys, onFire, onMute, onDock, onEscape, onAmmo, onHelp, onSail }
     this.enabled = false
 
     window.addEventListener("keydown", (e) => this.key(e, true))
@@ -23,6 +23,7 @@ export class Input {
 
   key(e, down) {
     if (!this.enabled) return
+    if (e.code === "Escape" && down && !e.repeat) return void this.h.onEscape() // auch aus Eingabefeldern
     if (e.ctrlKey || e.metaKey || e.altKey) return
     if (e.target.closest && e.target.closest("input, textarea, select")) return
 
@@ -60,7 +61,6 @@ export class Input {
       if (e.code === "KeyF") return void this.h.onDock()
       if (e.code === "KeyH") return void this.h.onHelp()
       if (e.code === "KeyS") return void this.h.onSail()
-      if (e.code === "Escape") return void this.h.onDock(true)
       const ammo = { Digit1: "ball", Digit2: "chain", Digit3: "fire" }[e.code]
       if (ammo) return void this.h.onAmmo(ammo)
       if (e.code === "KeyM") this.h.onMute()

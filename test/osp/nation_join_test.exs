@@ -92,6 +92,71 @@ defmodule Osp.NationJoinTest do
     end
   end
 
+  describe "Neu anfangen" do
+    defp played(tok) do
+      Profiles.put(
+        tok,
+        Profile.decode(%{
+          "nation" => "france",
+          "gold" => 500,
+          "bank" => 200,
+          "class" => "klipper",
+          "kills" => 7
+        })
+      )
+    end
+
+    test "reset ohne Nation fragt nur nach der Nation, nichts geht verloren" do
+      w = start_world()
+      tok = token()
+      played(tok)
+
+      assert {:push, {:text, json}, st} = join(socket(w), tok, %{reset: true})
+      assert %{"reason" => "nation_required"} = Jason.decode!(json)
+      assert st.id == nil
+      assert Profiles.get(tok)["gold"] == 500
+    end
+
+    test "nach der Wahl: neues Profil mit der neuen Nation, alles andere zurückgesetzt" do
+      w = start_world()
+      tok = token()
+      played(tok)
+
+      {:push, _, st} = join(socket(w), tok, %{reset: true})
+      assert {:push, {:text, json}, st} = join(st, tok, %{nation: "england"})
+      assert %{"t" => "welcome"} = Jason.decode!(json)
+      assert st.id == tok
+
+      ship = World.state(w).ships[tok]
+      assert ship.nation == :england
+      assert ship.gold == 0 and ship.bank == 0 and ship.class == :schaluppe and ship.kills == 0
+    end
+
+    test "Abbruch nach der Frage (neue Verbindung ohne reset): altes Profil gilt weiter" do
+      w = start_world()
+      tok = token()
+      played(tok)
+
+      {:push, _, _} = join(socket(w), tok, %{reset: true})
+      assert {:push, {:text, json}, _} = join(socket(w), tok)
+      assert %{"t" => "welcome"} = Jason.decode!(json)
+      assert World.state(w).ships[tok].gold == 500
+    end
+
+    test "während das Schiff in der Welt ist: wird entfernt und neu erzeugt" do
+      w = start_world()
+      tok = token()
+      played(tok)
+      {:push, _, _} = join(socket(w), tok)
+      assert World.state(w).ships[tok].gold == 500
+
+      {:push, _, st} = join(socket(w), tok, %{reset: true})
+      {:push, _, _} = join(st, tok, %{nation: "spain"})
+      assert World.state(w).ships[tok].gold == 0
+      assert World.state(w).ships[tok].nation == :spain
+    end
+  end
+
   describe "World.join/5" do
     test "nation: setzt die Heimatnation" do
       w = start_world()
