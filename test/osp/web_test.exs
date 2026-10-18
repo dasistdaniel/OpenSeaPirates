@@ -25,7 +25,7 @@ defmodule Osp.WebTest do
     assert html =~ ~s(property="og:title")
 
     assert html =~
-             ~s(property="og:image" content="https://pirating.ids-gaming.de/images/preview.jpg")
+             ~s(property="og:image" content="https://openseas.ids-gaming.de/images/preview.jpg")
 
     assert html =~ ~s(name="twitter:card" content="summary_large_image")
 
